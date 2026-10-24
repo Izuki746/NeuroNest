@@ -140,6 +140,18 @@ void updateServo(int target) {
 // Slow changes only (no fast flashing).
 bool isLeftMotor(int r, int c) { return r >= 2 && r <= 4 && c >= 1 && c <= 4; }
 
+// The Zephyr toolchain on the UNO Q doesn't link libm, so no sinf/fmod/fabsf: tiny replacements.
+float absf(float x) { return x < 0 ? -x : x; }
+float wrapf(float x, float m) { return x - m * (float)((long)(x / m)); }   // x mod m for x >= 0
+float sinApprox(float x) {
+  // Bhaskara-style parabola approximation of sin, good enough for a glow animation
+  const float PI_F = 3.14159265f;
+  x = wrapf(x, 2 * PI_F);
+  float sign = 1;
+  if (x > PI_F) { x -= PI_F; sign = -1; }
+  return sign * (16 * x * (PI_F - x)) / (5 * PI_F * PI_F - 4 * x * (PI_F - x));
+}
+
 void runDemo() {
   unsigned long t = millis() % 40000UL;
   float sec = t / 1000.0f;
@@ -149,7 +161,7 @@ void runDemo() {
 
   float recovery = 0;                          // 0..1 over the rehab phase
   if (sec > 8) recovery = constrain((sec - 8) / 27.0f, 0.0f, 1.0f);
-  float attemptPhase = fmod(sec, 2.0f) / 2.0f; // a "squeeze" every 2 s
+  float attemptPhase = wrapf(sec, 2.0f) / 2.0f; // a "squeeze" every 2 s
   float wave = (sec > 8) ? attemptPhase * 8.0f : -10;   // row position of travelling bump
 
   for (int r = 0; r < 8; r++) {
@@ -158,13 +170,13 @@ void runDemo() {
       float v;
       if (c == 6) { v = 1; }
       else {
-        float base = 2.0f + 1.0f * sinf(sec * 0.8f + r * 0.6f + c * 0.4f);
+        float base = 2.0f + 1.0f * sinApprox(sec * 0.8f + r * 0.6f + c * 0.4f);
         v = base;
         if (sec > 5 && isLeftMotor(r, c)) {
           float dim = (sec < 8) ? (sec - 5) / 3.0f : 1.0f - recovery * 0.7f;
           v = base * (1.0f - dim);
         }
-        if (c < 6 && fabsf(r - wave) < 1.0f) v += 4.0f * (1.0f - fabsf(r - wave)) * (isLeftMotor(r, c) ? (0.3f + 0.7f * recovery) : 1.0f);
+        if (c < 6 && absf(r - wave) < 1.0f) v += 4.0f * (1.0f - absf(r - wave)) * (isLeftMotor(r, c) ? (0.3f + 0.7f * recovery) : 1.0f);
       }
       frame[i] = (uint8_t)constrain((int)(v * 7.0f / 9.0f + 0.5f), 0, 7);
     }
