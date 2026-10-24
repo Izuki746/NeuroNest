@@ -7,7 +7,7 @@
 ---
 
 ## 0. Context recap
-- **Project:** *Lightswitch: Rewire*, a stroke-recovery flight simulator (OxHack 2026, theme TIME). A virtual brain gets a stroke; visitors rehab it with webcam hand squeezes and timed stimulation; the AI forecasts and plans recovery.
+- **Project:** *NeuroNest*, a stroke-recovery flight simulator (OxHack 2026, theme TIME). A virtual brain gets a stroke; visitors rehab it with webcam hand squeezes and timed stimulation; the AI forecasts and plans recovery.
 - **Your job:** make the virtual brain **physical and visible**. The UNO Q's LED matrix is a **map of the brain seen from above** (the stroke area goes dark, activity glows, the stimulated region pulses). The Grove LCD shows the status with a coloured backlight. The servo is the **patient's arm** (barely moves after the stroke, lifts more as they recover). Optionally, the misc LCD shows the forecast.
 - **How you get data:** the laptop server (Person C) exposes `GET http://<laptop-ip>:8000/api/device` returning JSON (SHARED_CONTEXT §7.5). The UNO Q's **Linux side** polls it 10×/s and passes values to the **microcontroller side** through **Bridge**, which drives the hardware.
 - **Prizes you carry:** Citadel "Best Handmade Project", and the whole "wow, it's physical" factor at judging.
@@ -147,7 +147,7 @@ void setup() {
   Bridge.provide("setLcd", setLcd);
   Bridge.provide("setServo", setServo);
   matrix.begin();                       // + setGrayscaleBits(3) if available
-  Wire.begin(); lcd.begin(16, 2); lcd.setRGB(40,80,255); lcd.print("LIGHTSWITCH");
+  Wire.begin(); lcd.begin(16, 2); lcd.setRGB(40,80,255); lcd.print("NEURONEST");
   // servo init (library attach(9) or pin mode for software pulses)
 }
 void loop() {
@@ -194,7 +194,7 @@ App.run(user_loop=loop)
 
 ### Step 5: Offline demo mode (in the sketch)
 A self-contained ~40 s loop for when the network fails:
-1. 0–5 s: whole brain gently glowing (healthy), LCD `LIGHTSWITCH` / `REWIRE`, blue.
+1. 0–5 s: whole brain gently glowing (healthy), LCD `NEURONEST` / `STROKE SIM`, blue.
 2. 5–8 s: the left motor area (where lM1/lPMC sit in the layout; hard-code their LED indices from `led_layout()`, ask A/C for the printout) fades to dark; LCD `STROKE: L MOTOR` red; servo limp.
 3. 8–35 s: repeated "attempts": a bump travels front→back down the left hemisphere every 2 s; the servo lift grows 10°→60°; LCD `DAY n  ARM xx%` counting up; backlight red→amber→green.
 4. Loop. **No fast flashing** (≤ 3 changes/s per LED).

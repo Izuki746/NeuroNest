@@ -5,7 +5,7 @@
 ---
 
 ## 0. Context recap (60 seconds)
-- **Project:** *Lightswitch: Rewire*, a stroke-recovery flight simulator for OxHack 2026 (theme **TIME**). A virtual human brain (76 regions, The Virtual Brain's `connectivity_76`) gets a stroke. Webcam hand squeezes (with an **effort** score) are movement attempts. Timed 🔵 excite / 🟡 calm stimulation from phones. Connections rewire, the arm recovers over simulated days. Digital twins + forecaster + planner make up the AI.
+- **Project:** *NeuroNest*, a stroke-recovery flight simulator for OxHack 2026 (theme **TIME**). A virtual human brain (76 regions, The Virtual Brain's `connectivity_76`) gets a stroke. Webcam hand squeezes (with an **effort** score) are movement attempts. Timed 🔵 excite / 🟡 calm stimulation from phones. Connections rewire, the arm recovers over simulated days. Digital twins + forecaster + planner make up the AI.
 - **You are the engine.** Person C's server imports your `Session` and the AI functions; Person B's Uno Q displays your `led_string()`. **If your API matches Section 7.3, nobody is blocked.**
 - **Main prize you carry:** HRT (prediction + decision-making). Make the AI rigorous, honest and visual: calibrated uncertainty, held-out accuracy, a clear comparison with baselines.
 - **Hacking ends 12:00 Sunday.** Feature freeze at 11:00.
@@ -27,7 +27,7 @@
 
 ## 2. Setup
 ```bash
-cd lightswitch
+cd neuronest
 python -m venv .venv && .venv\Scripts\activate
 pip install numpy scipy scikit-learn lightgbm python-dotenv psycopg[binary] pandas pyarrow
 # optional speed-up later: pip install numba

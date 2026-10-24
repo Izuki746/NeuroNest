@@ -1,4 +1,4 @@
-# Lightswitch: Rewire (OxHack 2026)
+# NeuroNest (OxHack 2026)
 
 Stroke-recovery flight simulator: a virtual human brain (The Virtual Brain `connectivity_76`) gets a stroke; webcam hand squeezes with effort tracking + timed stimulation drive rewiring; digital twins, a forecaster and a planner predict and optimise recovery; shown on a three.js dashboard and an Arduino UNO Q (LED brain map, Grove LCD, servo arm). Theme: TIME. Hacking ends 12:00 Sunday 25 Oct 2026.
 

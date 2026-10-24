@@ -1,4 +1,4 @@
-# Lightswitch: Rewire
+# NeuroNest
 
 **A flight simulator for stroke recovery.** Damage a virtual human brain, rehab it with your own hand movements and well-timed stimulation, and let an AI predict each patient's recovery and find the best-timed therapy plan.
 
@@ -181,7 +181,7 @@ forecasts(time, session_id, sim_day, p10, p50, p90)
 
 ### Project layout
 ```
-lightswitch/
+neuronest/
   data/connectivity_76/   brain map (downloaded)
   brain/    model.py, stroke.py, plasticity.py, patients.py
   ai/       simulate_patients.py, twins.py, forecaster.py, planner.py

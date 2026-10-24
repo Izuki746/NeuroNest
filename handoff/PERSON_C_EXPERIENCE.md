@@ -5,7 +5,7 @@
 ---
 
 ## 0. Context recap
-- **Project:** *Lightswitch: Rewire*, a stroke-recovery flight simulator for OxHack 2026 (theme **TIME**). A virtual brain gets a stroke; visitors rehab it by squeezing their hand at a webcam (each squeeze = a movement attempt, with an **effort** score); someone times 🔵 excite / 🟡 calm stimulation from a phone; connections rewire; the arm recovers over simulated days; the AI forecasts (digital twins) and plans therapy.
+- **Project:** *NeuroNest*, a stroke-recovery flight simulator for OxHack 2026 (theme **TIME**). A virtual brain gets a stroke; visitors rehab it by squeezing their hand at a webcam (each squeeze = a movement attempt, with an **effort** score); someone times 🔵 excite / 🟡 calm stimulation from a phone; connections rewire; the arm recovers over simulated days; the AI forecasts (digital twins) and plans therapy.
 - **You build everything people see and touch** except the LED board: the webcam effort tracker, the server hub, the 3D dashboard (the big screen), the phone stimulation app, Tiger Data storage, the narrator and voice coach, and the story (Devpost + pitch).
 - **Prizes you carry:** Tiger Data, Gemini, ElevenLabs, plus the overall demo quality. You also present HRT's numbers (A gives them to you).
 
@@ -33,7 +33,7 @@ Sleep: **02:30–05:30** (leave the server running for A's overnight jobs if nee
 
 ## 2. Setup (Laptop 1 = demo laptop, Windows 11, Python 3.11.8)
 ```bash
-cd lightswitch
+cd neuronest
 python -m venv .venv && .venv\Scripts\activate
 pip install -r requirements.txt
 python -m venv .venv-hands && .venv-hands\Scripts\activate
@@ -125,7 +125,7 @@ Plain HTML + JS modules. **three.js** from a pinned CDN (`https://cdn.jsdelivr.n
 
 **Layout:**
 ```
-┌──────────────────────────── LIGHTSWITCH: REWIRE ─────── Patient B · 45y · L motor ─┐
+┌──────────────────────────── NEURONEST ───────────────── Patient B · 45y · L motor ─┐
 │                                   │  ARM FUNCTION   47%  (big)  ▲ +3 today          │
 │      3D BRAIN (76 nodes)          │  EFFORT gauge 82%  · rolling 74% · [FATIGUE]    │
 │   glow = activity, grey = lesion  │  DAY 23 · attempts 7/20                         │
@@ -202,7 +202,7 @@ Plain HTML + JS modules. **three.js** from a pinned CDN (`https://cdn.jsdelivr.n
 Exactly SHARED_CONTEXT §7.5. LCD text by phase:
 | Phase | lcd1 | lcd2 | rgb |
 |---|---|---|---|
-| No patient | `LIGHTSWITCH     ` | `REWIRE  READY   ` | blue |
+| No patient | `NEURONEST       ` | `STROKE SIM READY` | blue |
 | Calibrating | `CALIBRATING...  ` | `OPEN+CLOSE x3   ` | white |
 | Patient intro (5 s) | `PATIENT A  74y  ` | `STROKE: L MOTOR ` | by arm |
 | Rehab | `DAY 23  ARM 47% ` | `EFFORT 82%      ` | by arm |

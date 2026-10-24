@@ -1,4 +1,4 @@
-# Lightswitch: Rewire · Team Plan + Hardware Guide
+# NeuroNest · Team Plan + Hardware Guide
 
 OxHack 2026 · Hacking ends **12:00 Sunday** · Judging 13:00–15:45
 Clocks go back tonight (02:00 → 01:00), so we get **25 hours**.
@@ -131,7 +131,7 @@ To the Uno Q (simpler, ~10 per second):
 2. Plug the Uno Q into the laptop with **USB-C**. Wait about a minute for it to boot.
 3. Open App Lab, select the board, follow the setup to **connect it to the venue WiFi**. Note its IP address.
 4. Open a built-in **LED matrix example** and run it. LEDs light up = working ✅
-5. Create a new App called `lightswitch`. It has two parts:
+5. Create a new App called `neuronest`. It has two parts:
    - **Python** (`main.py`): connects to the laptop server's WebSocket, receives `device` messages, and calls the sketch through Bridge.
    - **Sketch** (`sketch.ino`): provides functions `setLeds(string)`, `setLcd(line1, line2, r, g, b)`, `setServo(angle)`.
 6. Claude writes both files. Copy them in, press Run, and report what happens.

@@ -1,4 +1,4 @@
-# SHARED CONTEXT: Lightswitch: Rewire (OxHack 2026)
+# SHARED CONTEXT: NeuroNest (OxHack 2026)
 
 > **For Claude (any teammate's session): read this whole file before doing anything.** It's the single source of truth for the project idea, the hardware, the team split, and every interface between the three parts. Your person-specific brief (`PERSON_A_BRAIN_AI.md`, `PERSON_B_HARDWARE.md` or `PERSON_C_EXPERIENCE.md`) tells you what *your* human builds. If your brief and this file ever disagree, **this file wins on interfaces**. Don't change any interface in Section 7 without the whole team agreeing; if you must, update this file in the same commit and tell your human to tell the others.
 
@@ -26,9 +26,9 @@
 
 ## 1. The project in one paragraph
 
-**Lightswitch: Rewire is a flight simulator for stroke recovery.** A virtual human brain (76 cortical regions, real MRI-derived wiring from The Virtual Brain project) is given a stroke. Visitors rehab it by **squeezing their hand at a webcam** (each squeeze = the patient's attempt to move; **effort** is measured from the hand movement) while someone **times brain stimulation** from a phone. Well-timed stimulation + effortful practice makes surviving pathways **rewire**, and the patient's arm (a servo + the dashboard) recovers over simulated days. An AI builds **digital twins** of each patient, **forecasts day-90 recovery with uncertainty**, and **plans the best-timed therapy** by testing plans on copies of the brain. It's shown on a 3D dashboard and on the Arduino Uno Q's LED matrix (a brain map), with a Grove LCD status screen and voice coaching.
+**NeuroNest is a flight simulator for stroke recovery.** A virtual human brain (76 cortical regions, real MRI-derived wiring from The Virtual Brain project) is given a stroke. Visitors rehab it by **squeezing their hand at a webcam** (each squeeze = the patient's attempt to move; **effort** is measured from the hand movement) while someone **times brain stimulation** from a phone. Well-timed stimulation + effortful practice makes surviving pathways **rewire**, and the patient's arm (a servo + the dashboard) recovers over simulated days. An AI builds **digital twins** of each patient, **forecasts day-90 recovery with uncertainty**, and **plans the best-timed therapy** by testing plans on copies of the brain. It's shown on a 3D dashboard and on the Arduino Uno Q's LED matrix (a brain map), with a Grove LCD status screen and voice coaching.
 
-**Pitch line:** *"After a stroke, the brain can rewire, but only if you hit the right spot at the right time while the window is still open. Lightswitch Rewire predicts how a patient will recover and finds the best-timed therapy before anyone touches their real brain."*
+**Pitch line:** *"After a stroke, the brain can rewire, but only if you hit the right spot at the right time while the window is still open. NeuroNest predicts how a patient will recover and finds the best-timed therapy before anyone touches their real brain."*
 
 ---
 
@@ -164,7 +164,7 @@
 
 ### 7.1 Repo layout
 ```
-lightswitch/
+neuronest/
   CLAUDE.md                  ← auto-loaded by Claude Code; points here
   PROJECT.md  TEAM_PLAN.md   ← human-readable plan
   handoff/                   ← these briefs
