@@ -10,3 +10,4 @@ One line each: `time (UTC) · initials · decision / assumption`.
 - 2026-10-24 · B · Uno Q sketch Bridge `setLcd` takes one string `line1|line2|r|g|b` (internal to unoq/; /api/device contract unchanged).
 - 2026-10-24 17:59 UTC · A · Cap plasticity weights at 1.2× pre-stroke values; 3.0× caused unstable simulated recovery and reversed the good-timing and rehab-vs-no-rehab tests.
 - 2026-10-24 17:59 UTC · A · Measure each patient's pre-stroke arm baseline with their overcompensation traits so card A recovery is normalized to its own healthy state.
+- 2026-10-24 19:24 UTC · A · Population chunks use independent deterministic seeds and local checkpoints; Tiger uploads are retried for saved chunks until successful.

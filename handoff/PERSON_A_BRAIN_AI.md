@@ -192,6 +192,8 @@ verdict: |Δ − best_offset| ≤ 60 → "good"; Δ < best_offset − 60 → "ea
 - Saves `ai/data/population.npz` (or parquet): traits, lesion vector (76 healths), plan, daily curve [90], efforts, plus derived features.
 - Writes sessions + daily rows to Tiger via `storage.tiger.bulk_write_population(...)` (C provides it; if it's not available yet, save locally and upload later with a script).
 - **Target:** ≥ 5,000 patients overnight (more is better). Log progress + ETA. Make it resumable (append chunks).
+- Run with `python -m ai.population`; options include `--patients`, `--chunk-size`, `--days`, `--seed`, `--output`, and `--no-tiger`. Completed chunk checkpoints are kept beside the NPZ so matching interrupted runs resume without repeating completed batches.
+- The NPZ includes per-patient traits, 76-region health, plan fields, baseline and daily arm function, daily mean effort/attempts/stimulation counts, and derived first-week features. Set `--days 90` (the default) for forecaster training data.
 
 ## 11. `ai/twins.py`: digital twins (particle filter)
 ```python
