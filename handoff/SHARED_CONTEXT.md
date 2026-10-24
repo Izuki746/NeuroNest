@@ -413,7 +413,7 @@ Dashboard: `http://localhost:8000/dashboard/` · Phones: `http://<laptop-ip>:800
 ## 10. Failure fallbacks
 | Failure | Fallback |
 |---|---|
-| Venue WiFi isolates devices | Phone hotspot for Laptop 1 + Uno Q + phones |
+| Venue WiFi isolates devices | **Venue WiFi is eduroam (WPA2-Enterprise + client isolation), so the Uno Q can't use it.** Use the demo laptop's **Windows Mobile Hotspot** (Settings → Network → Mobile hotspot, share eduroam over Wi-Fi, 2.4 GHz, name `NeuroNest`): Uno Q + visitor phones join it; the laptop's IP is then usually `192.168.137.1`. Fallback: phone hotspot for laptop + Uno Q + phones |
 | Uno Q unreachable | Dashboard-only demo; the Uno Q runs a scripted offline animation (B builds a `--demo` mode into the sketch) |
 | Hand tracking flaky | Spacebar (keyboard.py) / phone "SQUEEZE" button |
 | Servo resets the board | Power the servo from a separate 5V USB, sharing GND; or remove it |
