@@ -304,6 +304,24 @@ In the **attempt** message, `t_ms` = **onset** time (when openness crossed the s
  "narration":{"text":"...","audio_url":"/audio/abc.mp3"} | null,
  "calibrating":false}
 {"type":"event","kind":"attempt"|"stim"|"day_end"|"patient"|"fatigue"|"plan_ready","data":{...}}
+```
+**Dashboard additions (B, Sat evening). Optional fields; the dashboard degrades gracefully without them. Reference implementation: `web/dashboard/dev_server.py`:**
+```json
+state += {"plan_explanation":"Calm right M1: ...", "busy":"AI planner testing plans…" | null,
+          "seizure": null | {"active":true, "phase":"pre"|"ictal"|"post", "risk":0..1, "onset":"lS1",
+                             "regions":{"lS1":0.9,"lM1":0.4}, "eta_s":2.1|null, "elapsed_s":3.4|null,
+                             "treated":true, "treated_by":"ai"|"human", "treatment":"Calm lS1"},
+          "brain":"real"|"fake", "dev":{"auto":true,"auto_treat":true}}
+events += {"kind":"treatment","data":{"actor","region","kind","reason","label"}}
+          {"kind":"seizure","data":{"phase":"start","onset":"lS1"}} / {"phase":"end","duration_s":5.3,"treatment":"Calm lS1","treated_by":"ai"}
+          {"kind":"fast_forward_done","data":{"days":90,"plan":"ai","arm_function":0.67}}
+          attempt event data: {"effort","arm_output","arm_function","offset_ms","verdict","gate","day","attempts_today","source"}
+          stim event data: {"region","kind","actor","t_ms"}   (the dashboard pairs it with the next attempt's verdict)
+controls += dev_attempt (dashboard Squeeze button / Space), dev_auto {on}, dev_seizure, dev_auto_treat {on}  (dev/demo helpers; C's server may implement them by copying dev_server.py)
+```
+- **Seizures (A):** when the post-stroke epilepsy plug-in exists, `Session.state()` should return the `seizure` object above (regions = seizing regions with intensity 0..1). Calming a seizing region (`submit_stim(..., kind="calm")`) should stop it. Until then the dashboard dev server simulates one with **Simulate seizure**.
+- The dashboard reads `stim` as `{"region","kind","actor","active"}` (ring animation) and shows `plan`/`plan_curves` in the Treatment panel.
+```json
 {"type":"audio","url":"/audio/squeeze_now.mp3"}      (the dashboard plays it)
 {"type":"report","markdown":"..."}
 ```
@@ -371,12 +389,12 @@ Dashboard: `http://localhost:8000/dashboard/` · Phones: `http://<laptop-ip>:800
 
 ## 8. Team, ownership, timeline
 
-> **Ownership update (Sat ~18:00):** B's hardware is done, so **B now also owns Tiger Data storage (`storage/`: schema.sql, tiger.py with `TigerWriter` + `bulk_write_population` exactly as specified in PERSON_C_EXPERIENCE.md §7) and the big-screen dashboard (`web/dashboard/`, spec in PERSON_C_EXPERIENCE.md §5).** C keeps the server hub, webcam hands + effort, keyboard backup, phone page, Gemini/ElevenLabs narration, Devpost and presenting. C's server imports `storage.tiger.TigerWriter` and serves `web/dashboard` statically. Interfaces are unchanged.
+> **Ownership update (Sat ~18:00):** B's hardware is done, so **B now also owns the big-screen dashboard (`web/dashboard/`, spec in PERSON_C_EXPERIENCE.md §5).** C keeps the server hub, **Tiger Data storage**, webcam hands + effort, keyboard backup, phone page, Gemini/ElevenLabs narration, Devpost and presenting. C's server serves `web/dashboard/` at `/dashboard` and broadcasts `/ws/state` exactly per §7.5. Interfaces are unchanged.
 
 
 | | A: Brain + AI | B: Hardware | C: Experience |
 |---|---|---|---|
-| Folders | `brain/`, `ai/` | `unoq/`, **`storage/`**, **`web/dashboard/`** | `inputs/`, `server/`, `web/phone/` |
+| Folders | `brain/`, `ai/` | `unoq/`, **`web/dashboard/`** | `inputs/`, `server/`, `storage/`, `web/phone/` |
 | Ships first (hour 1) | `brain/fake.py` + `brain/layout.py` | Uno Q on WiFi + LED example | server skeleton serving fake state + hands openness print |
 
 **Checkpoints**

@@ -4,7 +4,7 @@
 
 ---
 
-> **⚠️ OWNERSHIP UPDATE:** Person **B** now builds **Tiger Data storage (§7)** and the **dashboard (§5)**. C: skip those sections, but keep them as the spec your server must integrate with (import `storage.tiger.TigerWriter`; serve `web/dashboard/` at `/dashboard`; broadcast `/ws/state` exactly per SHARED_CONTEXT §7.5). Everything else in this brief is still C's.
+> **⚠️ OWNERSHIP UPDATE:** Person **B** now builds the **dashboard (§5)**. C: skip §5, but keep it as the spec your server must integrate with (serve `web/dashboard/` at `/dashboard`; broadcast `/ws/state` exactly per SHARED_CONTEXT §7.5; accept `POST /api/control`). **Tiger Data storage (§7) stays with C.** Everything else in this brief is still C's.
 
 ## 0. Context recap
 - **Project:** *NeuroNest*, a stroke-recovery flight simulator for OxHack 2026 (theme **TIME**). A virtual brain gets a stroke; visitors rehab it by squeezing their hand at a webcam (each squeeze = a movement attempt, with an **effort** score); someone times 🔵 excite / 🟡 calm stimulation from a phone; connections rewire; the arm recovers over simulated days; the AI forecasts (digital twins) and plans therapy.

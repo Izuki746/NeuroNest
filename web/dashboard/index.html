@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NeuroNest Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+  <script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"></span>
+      <div>
+        <h1>NeuroNest</h1>
+        <p class="sub">Stroke-recovery simulator · <span id="brainKind">connecting…</span></p>
+      </div>
+    </div>
+    <div class="patient" id="patientBox">
+      <span class="chip" id="patientCard">—</span>
+      <span id="patientText">No patient</span>
+    </div>
+    <div class="clock">
+      <div><span class="k">DAY</span> <span id="day" class="big mono">—</span></div>
+      <div><span class="k">TODAY</span> <span id="attempts" class="mono">0/20</span></div>
+      <div><span class="k">MODE</span> <span id="mode" class="mono">HUMAN</span></div>
+      <span class="conn" id="conn" title="server connection"></span>
+    </div>
+  </header>
+
+  <main class="grid">
+    <section class="panel brain">
+      <div class="panel-h">
+        <h2>Live brain <span class="dim">· 76 regions · MRI-derived wiring</span></h2>
+        <div class="legend">
+          <span><i class="dot act"></i>activity</span>
+          <span><i class="dot les"></i>stroke</span>
+          <span><i class="dot sz"></i>seizure</span>
+          <span><i class="ring ex"></i>excite</span>
+          <span><i class="ring ca"></i>calm</span>
+          <span><i class="bar gr"></i>rewiring</span>
+        </div>
+      </div>
+      <div class="brain-stage" id="brainStage">
+        <div class="labels" id="labels"></div>
+        <div class="tooltip" id="tooltip" hidden></div>
+        <div class="busy" id="busy" hidden></div>
+        <div class="toast" id="toast"></div>
+        <div class="select-bar" id="selectBar" hidden>
+          <span id="selName"></span>
+          <button class="btn excite" data-stim="excite">Excite</button>
+          <button class="btn calm" data-stim="calm">Calm</button>
+        </div>
+      </div>
+    </section>
+
+    <aside class="side">
+      <section class="panel card arm">
+        <div class="panel-h"><h2>Right arm function</h2><span class="dim" id="armDelta"></span></div>
+        <div class="arm-row">
+          <div class="arm-num"><span id="armPct" class="huge mono">—</span><span class="unit">%</span></div>
+          <svg class="arm-svg" viewBox="0 0 160 120" aria-label="patient arm">
+            <path d="M18 104 A88 88 0 0 1 106 16" class="arc"/>
+            <circle cx="30" cy="70" r="11" class="shoulder"/>
+            <line x1="30" y1="70" x2="68" y2="96" class="upper"/>
+            <g id="forearm" style="transform-origin:68px 96px">
+              <line x1="68" y1="96" x2="128" y2="96" class="fore"/>
+              <circle cx="134" cy="96" r="7" class="hand"/>
+            </g>
+            <circle cx="68" cy="96" r="5" class="elbow"/>
+          </svg>
+        </div>
+        <div class="meter"><div id="armBar"></div></div>
+      </section>
+
+      <section class="panel card">
+        <div class="panel-h"><h2>Effort &amp; timing</h2><span class="badge warn" id="fatigue" hidden>fatigue</span></div>
+        <div class="two">
+          <div class="gauge">
+            <svg viewBox="0 0 120 70"><path d="M10 64 A50 50 0 0 1 110 64" class="g-bg"/><path id="effortArc" d="M10 64 A50 50 0 0 1 110 64" class="g-fg"/></svg>
+            <div class="g-val"><span id="effortPct" class="mono">—</span><small>last squeeze</small></div>
+            <div class="dim tiny" id="effortRolling">rolling —</div>
+          </div>
+          <div class="timing">
+            <div class="t-bar"><span class="t-zero"></span><span class="t-mark" id="timingMark"></span></div>
+            <div class="t-scale mono"><span>-400ms</span><span>squeeze</span><span>+400ms</span></div>
+            <div class="t-text" id="timingText">No stimulation yet</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel card">
+        <div class="panel-h"><h2>Day-90 forecast</h2><span class="dim" id="twins"></span></div>
+        <div class="fc-row">
+          <span id="fcP50" class="big mono">—</span>
+          <span class="dim" id="fcRange"></span>
+        </div>
+        <div class="fc-band"><div id="fcBand"></div><div id="fcMid"></div></div>
+        <p class="dim tiny">Digital twins rule out candidate patients each day, so the range narrows.</p>
+      </section>
+
+      <section class="panel card seizure" id="szCard" data-phase="none">
+        <div class="panel-h"><h2>Seizure monitor</h2><span class="badge" id="szBadge">stable</span></div>
+        <div class="sz-main" id="szText">No abnormal activity</div>
+        <div class="meter risk"><div id="szRisk"></div></div>
+        <div class="sz-regions" id="szRegions"></div>
+        <div class="sz-tx dim" id="szTx"></div>
+      </section>
+    </aside>
+
+    <section class="panel chart">
+      <div class="panel-h">
+        <h2>Recovery over time</h2>
+        <div class="legend">
+          <span><i class="bar ob"></i>observed</span>
+          <span><i class="bar fc"></i>forecast</span>
+          <span><i class="bar ai"></i>AI plan</span>
+          <span><i class="bar st"></i>standard rehab</span>
+          <span><i class="bar no"></i>no rehab</span>
+        </div>
+      </div>
+      <canvas id="chart"></canvas>
+    </section>
+
+    <section class="panel treat">
+      <div class="panel-h"><h2>Treatment</h2><button class="btn small" data-ctl="run_planner">Run AI planner</button></div>
+      <div class="plan" id="plan">
+        <div class="plan-empty">No plan yet. The AI tests hundreds of plans on copies of this brain.</div>
+      </div>
+      <h3>Treatment log</h3>
+      <ol class="log" id="log"></ol>
+    </section>
+  </main>
+
+  <footer class="controls">
+    <div class="group"><span class="k">Patient</span>
+      <button class="btn" data-patient="A">A · 74y</button>
+      <button class="btn" data-patient="B">B · 45y</button>
+      <button class="btn" data-patient="R">Random</button>
+    </div>
+    <div class="group"><span class="k">Rehab</span>
+      <button class="btn primary" data-ctl="dev_attempt" title="Space">Squeeze</button>
+      <button class="btn" data-ctl="end_day">End day</button>
+      <button class="btn" data-mode>Mode: Human</button>
+    </div>
+    <div class="group"><span class="k">Fast-forward 90 days</span>
+      <button class="btn" data-ff="standard">Standard</button>
+      <button class="btn ok" data-ff="ai">AI plan</button>
+      <button class="btn" data-ff="none">No rehab</button>
+    </div>
+    <div class="group"><span class="k">Demo</span>
+      <button class="btn toggle" data-dev="dev_auto" id="autoBtn">Auto rehab</button>
+      <button class="btn danger" data-ctl="dev_seizure">Simulate seizure</button>
+      <button class="btn toggle" data-dev="dev_auto_treat" id="autoTreatBtn">AI treats seizures</button>
+    </div>
+    <div class="narration" id="narration"></div>
+  </footer>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
