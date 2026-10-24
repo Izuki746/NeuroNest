@@ -371,12 +371,23 @@ class Hub:
             return int(round(self.servo_peak * (1 - (dt - 300) / 800)))
         return 0
 
+    def led_activity(self, health: np.ndarray) -> np.ndarray:
+        """Activity for the 8x13 LED matrix: smoothed over time, with a steady glow for healthy
+        regions so resting noise doesn't flicker LEDs on/off; only real activity (squeezes,
+        stimulation, seizures) rises above the baseline. Lesions stay dark via led_string's health cap."""
+        act = self.current_activity()
+        prev = getattr(self, "_led_act", None)
+        self._led_act = act if prev is None else prev + 0.35 * (act - prev)
+        rest = 0.07
+        return 0.22 * health + 1.4 * np.clip(self._led_act - rest, 0.0, None)
+
     def device(self) -> dict:
         t = now_ms()
         st = self.session.state()
         arm = float(st["arm_function"])
         stim_region = self.stim_vis["region"] if (self.stim_vis and t < self.stim_vis["until"]) else None
-        leds = led_string(self.current_activity(), np.asarray(st["health"], dtype=float), stim_region, t)
+        health = np.asarray(st["health"], dtype=float)
+        leds = led_string(self.led_activity(health), health, stim_region, t)
         p = st["patient"]
         sz = self.seizure
         if t < self.intro_until:
