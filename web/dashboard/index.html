@@ -13,39 +13,60 @@
       <span class="logo" aria-hidden="true"></span>
       <div>
         <h1>NeuroNest</h1>
-        <p class="sub">A flight simulator for stroke recovery · <span id="brainKind">connecting…</span></p>
+        <p class="sub">Stroke-recovery simulator · <span id="brainKind">connecting…</span></p>
       </div>
     </div>
+
     <div class="patient" id="patientBox">
       <span class="chip" id="patientCard">—</span>
       <span id="patientText">No patient</span>
     </div>
-    <div class="clock">
-      <div title="Days since the stroke (simulated)"><span class="k">DAY</span> <span id="day" class="big mono">—</span></div>
-      <div title="Rehab squeezes done today (20 = one day)"><span class="k">SQUEEZES TODAY</span> <span id="attempts" class="mono">0/20</span></div>
-      <div title="Human = you time the stimulation. AI = the AI times it."><span class="k">MODE</span> <span id="mode" class="mono">HUMAN</span></div>
-      <button class="btn help" id="helpBtn">How it works</button>
-      <span class="conn" id="conn" title="server connection"></span>
+
+    <div class="status">
+      <div class="daybox" title="Days since the stroke (simulated)">
+        <span class="k">Day</span><span id="day" class="day mono">—</span>
+      </div>
+      <div class="pill" title="Rehab squeezes today (20 = one day)"><span class="k">Squeezes</span> <span id="attempts" class="mono">0/20</span></div>
+      <div class="pill" title="Who times the stimulation"><span class="k">Mode</span> <span id="mode" class="mono">HUMAN</span></div>
+      <div class="pill links">
+        <span title="Laptop server"><i class="conn" id="conn"></i>Server</span>
+        <span title="Arduino board receiving live data"><i class="conn" id="boardConn"></i>Board</span>
+      </div>
+      <button class="btn ghost" id="helpBtn">How it works</button>
     </div>
   </header>
 
   <main class="grid">
+    <!-- HERO: the brain -->
     <section class="panel brain">
-      <div class="panel-h">
-        <div>
-          <h2>The patient's brain, live</h2>
-          <p class="explain">Each dot is a brain region. Squeezing makes the "move my arm" signal travel to the motor area. The stroke blocks it.</p>
-        </div>
-        <div class="legend">
-          <span><i class="dot act"></i>active</span>
-          <span><i class="dot les"></i>stroke damage</span>
-          <span><i class="dot sz"></i>seizure</span>
-          <span><i class="ring ex"></i>excite</span>
-          <span><i class="ring ca"></i>calm</span>
-          <span><i class="bar gr"></i>rewiring</span>
-        </div>
-      </div>
       <div class="brain-stage" id="brainStage">
+        <div class="stage-head">
+          <h2>Patient's brain, live <span class="info" data-tip="Each dot is a brain region at its real position, wired using MRI data. Squeezing sends a 'move my arm' signal from planning → premotor → motor. The stroke blocks it.">i</span></h2>
+          <div class="legend">
+            <span><i class="dot act"></i>active</span>
+            <span><i class="dot les"></i>stroke</span>
+            <span><i class="dot sz"></i>seizure</span>
+            <span><i class="ring ex"></i>excite</span>
+            <span><i class="ring ca"></i>calm</span>
+            <span><i class="bar gr"></i>new wiring</span>
+          </div>
+        </div>
+
+        <div class="hud" title="Last squeeze">
+          <div class="hud-effort">
+            <svg viewBox="0 0 120 70"><path d="M10 64 A50 50 0 0 1 110 64" class="g-bg"/><path id="effortArc" d="M10 64 A50 50 0 0 1 110 64" class="g-fg"/></svg>
+            <div class="g-val"><span id="effortPct" class="mono">—</span><small>effort</small></div>
+          </div>
+          <div class="hud-timing">
+            <div class="hud-k">Stimulation timing <span class="info" data-tip="Stimulation helps most when it lands just before the squeeze. Too early or too late helps less.">i</span>
+              <span class="badge warn" id="fatigue" hidden>tired</span></div>
+            <div class="t-bar"><span class="t-zero"></span><span class="t-mark" id="timingMark"></span></div>
+            <div class="t-scale"><span>early</span><span>squeeze</span><span>late</span></div>
+            <div class="t-text" id="timingText">No stimulation yet</div>
+            <div class="dim tiny" id="effortRolling">average —</div>
+          </div>
+        </div>
+
         <div class="labels" id="labels"></div>
         <div class="tooltip" id="tooltip" hidden></div>
         <div class="busy" id="busy" hidden></div>
@@ -61,12 +82,12 @@
       </div>
     </section>
 
-    <aside class="side">
-      <section class="panel card arm">
-        <div class="panel-h"><h2>Right arm strength</h2><span class="dim" id="armDelta"></span></div>
-        <p class="explain">How much of the "move" signal reaches the arm (100% = before the stroke).</p>
-        <div class="arm-row">
-          <div class="arm-num"><span id="armPct" class="huge mono">—</span><span class="unit">%</span></div>
+    <!-- RIGHT RAIL: three key numbers -->
+    <aside class="rail">
+      <section class="panel stat arm">
+        <div class="stat-h"><h2>Right arm strength <span class="info" data-tip="How much of the 'move' signal reaches the arm, compared with before the stroke. The animated arm mirrors the real servo.">i</span></h2><span class="dim tiny" id="armDelta"></span></div>
+        <div class="stat-row">
+          <div><span id="armPct" class="huge mono">—</span><span class="unit">%</span></div>
           <svg class="arm-svg" viewBox="0 0 160 120" aria-label="patient arm">
             <path d="M18 104 A88 88 0 0 1 106 16" class="arc"/>
             <circle cx="30" cy="70" r="11" class="shoulder"/>
@@ -81,36 +102,17 @@
         <div class="meter"><div id="armBar"></div></div>
       </section>
 
-      <section class="panel card">
-        <div class="panel-h"><h2>Squeeze effort &amp; stimulation timing</h2><span class="badge warn" id="fatigue" hidden>getting tired</span></div>
-        <p class="explain">Squeeze harder = faster recovery. Stimulate just before the squeeze.</p>
-        <div class="two">
-          <div class="gauge">
-            <svg viewBox="0 0 120 70"><path d="M10 64 A50 50 0 0 1 110 64" class="g-bg"/><path id="effortArc" d="M10 64 A50 50 0 0 1 110 64" class="g-fg"/></svg>
-            <div class="g-val"><span id="effortPct" class="mono">—</span><small>effort</small></div>
-            <div class="dim tiny" id="effortRolling">average —</div>
-          </div>
-          <div class="timing">
-            <div class="t-bar"><span class="t-zero"></span><span class="t-mark" id="timingMark"></span></div>
-            <div class="t-scale mono"><span>too early</span><span>squeeze</span><span>too late</span></div>
-            <div class="t-text" id="timingText">No stimulation yet</div>
-          </div>
-        </div>
-      </section>
-
-      <section class="panel card">
-        <div class="panel-h"><h2>Predicted recovery in 3 months</h2><span class="dim" id="twins"></span></div>
-        <div class="fc-row">
-          <span id="fcP50" class="big mono">—</span>
+      <section class="panel stat">
+        <div class="stat-h"><h2>In 3 months <span class="info" data-tip="The AI simulates many versions of this patient ('digital twins') and drops the ones that don't match their real progress, so the predicted range narrows every day.">i</span></h2><span class="dim tiny" id="twins"></span></div>
+        <div class="stat-row">
+          <div><span id="fcP50" class="huge mono">—</span></div>
           <span class="dim" id="fcRange"></span>
         </div>
         <div class="fc-band"><div id="fcBand"></div><div id="fcMid"></div></div>
-        <p class="explain">The AI tests many versions of this patient and drops those that don't match, so the range shrinks daily.</p>
       </section>
 
-      <section class="panel card seizure" id="szCard" data-phase="none">
-        <div class="panel-h"><h2>Seizure monitor</h2><span class="badge" id="szBadge">stable</span></div>
-        <p class="explain">Seizures can start near stroke damage. The AI predicts and calms them.</p>
+      <section class="panel stat seizure" id="szCard" data-phase="none">
+        <div class="stat-h"><h2>Seizure watch <span class="info" data-tip="Seizures can start next to stroke damage. The AI predicts them seconds early and calms the region with yellow light.">i</span></h2><span class="badge" id="szBadge">stable</span></div>
         <div class="sz-main" id="szText">No abnormal activity</div>
         <div class="meter risk"><div id="szRisk"></div></div>
         <div class="sz-regions" id="szRegions"></div>
@@ -118,12 +120,10 @@
       </section>
     </aside>
 
+    <!-- BOTTOM: recovery + treatment -->
     <section class="panel chart">
       <div class="panel-h">
-        <div>
-          <h2>Recovery over time</h2>
-          <p class="explain">The brain heals fastest early on. Compare what happens with the AI's plan, normal rehab, or no rehab.</p>
-        </div>
+        <h2>Recovery over time <span class="info" data-tip="The brain heals fastest early on (green shading). Compare the AI's plan with normal rehab and no rehab.">i</span></h2>
         <div class="legend">
           <span><i class="bar ob"></i>so far</span>
           <span><i class="bar fc"></i>prediction</span>
@@ -137,42 +137,44 @@
 
     <section class="panel treat">
       <div class="panel-h">
-        <div>
-          <h2>Treatment plan</h2>
-          <p class="explain">The AI tries hundreds of treatments on copies of this brain and picks the best one.</p>
-        </div>
-        <button class="btn small" data-ctl="run_planner">Find best treatment</button>
+        <h2>Treatment plan <span class="info" data-tip="The AI tests hundreds of treatments on copies of this patient's brain and picks the best recovery for the least stimulation.">i</span></h2>
       </div>
       <div class="plan" id="plan">
-        <div class="plan-empty">No plan yet. Press "Find best treatment".</div>
+        <div class="plan-empty">No plan yet. Press <b>Find best treatment</b>.</div>
       </div>
-      <h3>What's been done</h3>
+      <h3>Recent</h3>
       <ol class="log" id="log"></ol>
     </section>
   </main>
 
-  <footer class="controls">
-    <div class="group"><span class="k">Patient</span>
-      <button class="btn" data-patient="A" title="74 years old, large stroke">A · 74y</button>
-      <button class="btn" data-patient="B" title="45 years old, smaller stroke">B · 45y</button>
-      <button class="btn" data-patient="R">Random</button>
+  <footer class="dock">
+    <div class="seg" role="group" aria-label="Patient">
+      <span class="k">Patient</span>
+      <button class="btn" data-patient="A" title="74 years old, large stroke">A · 74</button>
+      <button class="btn" data-patient="B" title="45 years old, smaller stroke">B · 45</button>
+      <button class="btn" data-patient="R" title="Random patient">?</button>
     </div>
-    <div class="group"><span class="k">Rehab</span>
-      <button class="btn primary" data-ctl="dev_attempt" title="Space">Squeeze</button>
-      <button class="btn" data-ctl="end_day" title="Skip to the next day">Next day</button>
-      <button class="btn" data-mode title="Who times the stimulation">Mode: Human</button>
-    </div>
-    <div class="group"><span class="k">Skip ahead 90 days with</span>
-      <button class="btn" data-ff="standard">Normal rehab</button>
-      <button class="btn ok" data-ff="ai">AI plan</button>
-      <button class="btn" data-ff="none">No rehab</button>
-    </div>
-    <div class="group"><span class="k">Demo</span>
-      <button class="btn toggle" data-dev="dev_auto" id="autoBtn" title="Automatic squeezes every few seconds">Auto squeeze</button>
-      <button class="btn danger" data-ctl="dev_seizure">Trigger seizure</button>
-      <button class="btn toggle" data-dev="dev_auto_treat" id="autoTreatBtn">AI treats seizures</button>
-    </div>
-    <div class="narration" id="narration"></div>
+    <button class="btn primary big" data-ctl="dev_attempt" title="Space">Squeeze</button>
+    <button class="btn ok" data-ctl="run_planner">Find best treatment</button>
+    <details class="menu">
+      <summary class="btn">Skip 90 days ▾</summary>
+      <div class="menu-pop">
+        <button class="btn ok" data-ff="ai">with the AI plan</button>
+        <button class="btn" data-ff="standard">with normal rehab</button>
+        <button class="btn" data-ff="none">with no rehab</button>
+      </div>
+    </details>
+    <button class="btn danger" data-ctl="dev_seizure">Trigger seizure</button>
+    <details class="menu">
+      <summary class="btn">⚙ Demo ▾</summary>
+      <div class="menu-pop">
+        <button class="btn toggle" data-dev="dev_auto" id="autoBtn">Auto squeeze</button>
+        <button class="btn toggle" data-dev="dev_auto_treat" id="autoTreatBtn">AI treats seizures</button>
+        <button class="btn" data-mode>Mode: Human</button>
+        <button class="btn" data-ctl="end_day">Next day</button>
+      </div>
+    </details>
+    <div id="narration" hidden></div>
   </footer>
 
   <div class="modal" id="help" hidden>

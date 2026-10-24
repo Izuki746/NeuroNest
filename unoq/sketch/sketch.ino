@@ -191,6 +191,30 @@ float sinApprox(float x) {
   return sign * (16 * x * (PI_F - x)) / (5 * PI_F * PI_F - 4 * x * (PI_F - x));
 }
 
+// Offline mode: the laptop is unreachable. Show that honestly (never made-up metrics, so the
+// board can't disagree with the website): last real brain picture breathing dimly, arm at rest,
+// LCD "NO LAPTOP LINK", status LED slow amber.
+void runOffline() {
+  static unsigned long lastFrame = 0;
+  if (millis() - lastFrame < 100) return;      // 10 fps, slow breathing (no flashing)
+  lastFrame = millis();
+  float breathe = 0.35f + 0.25f * (0.5f + 0.5f * sinApprox(millis() / 1000.0f * 1.5f));
+  for (int i = 0; i < N_LEDS; i++) {
+    int v = (i < (int)pendingLeds.length()) ? pendingLeds[i] - '0' : (i % 13 == 6 ? 1 : 2);
+    v = constrain(v, 0, 9);
+    frame[i] = (uint8_t)constrain((int)(v * 7.0f / 9.0f * breathe + 0.5f), 0, 7);
+  }
+  matrix.draw(frame);
+  lcdLine1 = "NO LAPTOP LINK";
+  lcdLine2 = "RECONNECTING...";
+  lcdR = 255; lcdG = 160; lcdB = 0;
+  updateLcd();
+  servoTarget = 0;
+  bool on = ((millis() / 1000) % 2) == 0;      // 0.5 Hz amber status LED
+  applyRgb(on ? "000110" : "000000");
+}
+
+// (kept for reference; no longer used: it showed its own numbers, which could disagree with the website)
 void runDemo() {
   unsigned long t = millis() % 40000UL;
   float sec = t / 1000.0f;
@@ -288,7 +312,7 @@ void setup() {
 
 void loop() {
   if (demoMode) {
-    runDemo();
+    runOffline();
   } else {
     if (ledsDirty) { ledsDirty = false; drawLedString(pendingLeds); }
     if (lcdDirty)  { lcdDirty = false; updateLcd(); }

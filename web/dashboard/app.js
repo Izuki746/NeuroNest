@@ -44,6 +44,7 @@ function onState(s) {
   brain.update(s);
   if (s.edges) brain.setRewiring(s.edges);
   $('brainKind').textContent = s.brain ? `${s.brain} brain` : 'live';
+  $('boardConn').classList.toggle('on', !!s.device_online);
   if (s.patient) {
     $('patientCard').textContent = s.patient.card;
     const les = Object.entries(s.patient.lesion || {}).map(([r, h]) => `${regionShort(r)} ${Math.round((1 - h) * 100)}% damaged`).join(', ');
@@ -213,7 +214,7 @@ function onEvent(m) {
 function addLog(kind, html, day) {
   logItems.unshift({ kind, html, day: day ?? S.day });
   logItems.length = Math.min(logItems.length, 40);
-  $('log').innerHTML = logItems.map((x) => `<li class="${x.kind}"><i></i><span>${x.html}</span><span class="when">day ${x.day ?? '—'}</span></li>`).join('');
+  $('log').innerHTML = logItems.slice(0, 5).map((x) => `<li class="${x.kind}"><i></i><span>${x.html}</span><span class="when">day ${x.day ?? '—'}</span></li>`).join('');
 }
 
 // ---------- "What's happening" caption ----------
@@ -257,6 +258,8 @@ window.addEventListener('resize', () => drawRecovery($('chart'), S));
 
 // ---------- controls ----------
 document.addEventListener('click', (e) => {
+  // close any open dock menu when clicking outside it, or after choosing an option in it
+  document.querySelectorAll('details.menu[open]').forEach((d) => { if (!d.contains(e.target) || e.target.closest('.menu-pop')) d.removeAttribute('open'); });
   const b = e.target.closest('button'); if (!b) return;
   if (b.dataset.patient) control('new_patient', { card: b.dataset.patient });
   else if (b.dataset.ff) control('fast_forward', { days: 90, plan: b.dataset.ff });

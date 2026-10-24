@@ -12,7 +12,7 @@ import urllib.request
 
 from arduino.app_utils import App, Bridge
 
-SERVER = "http://192.168.1.50:8000"   # <-- CHANGE ME to the laptop running the server
+SERVER = "http://192.168.137.1:8000"  # demo laptop on its Windows Mobile Hotspot (change if the laptop IP differs)
 POLL_S = 0.1
 FAILS_BEFORE_DEMO = 3
 
@@ -31,12 +31,19 @@ def call(name, *args):
         return None
 
 
+FULL_REFRESH_S = 2.0
+last_full = 0.0
+
+
 def set_demo(on):
-    global in_demo
+    """Offline mode on the board shows 'no laptop link', never its own numbers, so it can't disagree with the website."""
+    global in_demo, last_seq
     if on != in_demo:
         in_demo = on
         call("demo", 1 if on else 0)
-        print("offline demo ON" if on else "offline demo OFF (following server)")
+        if not on:
+            last_seq = None          # force a full redraw from the server the moment we reconnect
+        print("OFFLINE: no laptop link" if on else "reconnected: following server")
 
 
 def fetch_device():
@@ -69,14 +76,17 @@ def apply(d):
 
 
 def loop():
-    global last_seq, fails, last_log
+    global last_seq, fails, last_log, last_full
     try:
         d = fetch_device()
         fails = 0
         set_demo(False)
-        if d.get("seq") != last_seq:
+        now = time.monotonic()
+        # redraw on every change, and also every 2 s regardless, so the board can never drift from the website
+        if d.get("seq") != last_seq or now - last_full > FULL_REFRESH_S:
             apply(d)
             last_seq = d.get("seq")
+            last_full = now
     except Exception as e:
         fails += 1
         if fails == FAILS_BEFORE_DEMO:

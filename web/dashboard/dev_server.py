@@ -364,6 +364,7 @@ class Hub:
             "narration": self.narration,
             "busy": self.busy,
             "dev": {"auto": self.auto, "auto_treat": self.auto_treat},
+            "device_online": (t - getattr(self, "device_seen", -1e12)) < 1500,   # Uno Q polled /api/device recently
             "calibrating": False,
         }
         if t - self.edges_sent > 1000:
@@ -391,6 +392,7 @@ class Hub:
 
     def device(self) -> dict:
         t = now_ms()
+        self.device_seen = t
         st = self.session.state()
         arm = float(st["arm_function"])
         stim_region = self.stim_vis["region"] if (self.stim_vis and t < self.stim_vis["until"]) else None
