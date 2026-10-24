@@ -13,7 +13,7 @@
       <span class="logo" aria-hidden="true"></span>
       <div>
         <h1>NeuroNest</h1>
-        <p class="sub">Stroke-recovery simulator · <span id="brainKind">connecting…</span></p>
+        <p class="sub">A flight simulator for stroke recovery · <span id="brainKind">connecting…</span></p>
       </div>
     </div>
     <div class="patient" id="patientBox">
@@ -21,9 +21,10 @@
       <span id="patientText">No patient</span>
     </div>
     <div class="clock">
-      <div><span class="k">DAY</span> <span id="day" class="big mono">—</span></div>
-      <div><span class="k">TODAY</span> <span id="attempts" class="mono">0/20</span></div>
-      <div><span class="k">MODE</span> <span id="mode" class="mono">HUMAN</span></div>
+      <div title="Days since the stroke (simulated)"><span class="k">DAY</span> <span id="day" class="big mono">—</span></div>
+      <div title="Rehab squeezes done today (20 = one day)"><span class="k">SQUEEZES TODAY</span> <span id="attempts" class="mono">0/20</span></div>
+      <div title="Human = you time the stimulation. AI = the AI times it."><span class="k">MODE</span> <span id="mode" class="mono">HUMAN</span></div>
+      <button class="btn help" id="helpBtn">How it works</button>
       <span class="conn" id="conn" title="server connection"></span>
     </div>
   </header>
@@ -31,10 +32,13 @@
   <main class="grid">
     <section class="panel brain">
       <div class="panel-h">
-        <h2>Live brain <span class="dim">· 76 regions · MRI-derived wiring</span></h2>
+        <div>
+          <h2>The patient's brain, live</h2>
+          <p class="explain">Each dot is a brain region. Squeezing makes the "move my arm" signal travel to the motor area. The stroke blocks it.</p>
+        </div>
         <div class="legend">
-          <span><i class="dot act"></i>activity</span>
-          <span><i class="dot les"></i>stroke</span>
+          <span><i class="dot act"></i>active</span>
+          <span><i class="dot les"></i>stroke damage</span>
           <span><i class="dot sz"></i>seizure</span>
           <span><i class="ring ex"></i>excite</span>
           <span><i class="ring ca"></i>calm</span>
@@ -45,18 +49,22 @@
         <div class="labels" id="labels"></div>
         <div class="tooltip" id="tooltip" hidden></div>
         <div class="busy" id="busy" hidden></div>
-        <div class="toast" id="toast"></div>
         <div class="select-bar" id="selectBar" hidden>
           <span id="selName"></span>
           <button class="btn excite" data-stim="excite">Excite</button>
           <button class="btn calm" data-stim="calm">Calm</button>
+        </div>
+        <div class="story" id="story">
+          <span class="story-k" id="storyK">WHAT'S HAPPENING</span>
+          <span id="storyText">Squeeze your hand at the camera (or press Space) to make the patient try to move their right arm.</span>
         </div>
       </div>
     </section>
 
     <aside class="side">
       <section class="panel card arm">
-        <div class="panel-h"><h2>Right arm function</h2><span class="dim" id="armDelta"></span></div>
+        <div class="panel-h"><h2>Right arm strength</h2><span class="dim" id="armDelta"></span></div>
+        <p class="explain">How much of the "move" signal reaches the arm (100% = before the stroke).</p>
         <div class="arm-row">
           <div class="arm-num"><span id="armPct" class="huge mono">—</span><span class="unit">%</span></div>
           <svg class="arm-svg" viewBox="0 0 160 120" aria-label="patient arm">
@@ -74,33 +82,35 @@
       </section>
 
       <section class="panel card">
-        <div class="panel-h"><h2>Effort &amp; timing</h2><span class="badge warn" id="fatigue" hidden>fatigue</span></div>
+        <div class="panel-h"><h2>Squeeze effort &amp; stimulation timing</h2><span class="badge warn" id="fatigue" hidden>getting tired</span></div>
+        <p class="explain">Squeeze harder = faster recovery. Stimulate just before the squeeze.</p>
         <div class="two">
           <div class="gauge">
             <svg viewBox="0 0 120 70"><path d="M10 64 A50 50 0 0 1 110 64" class="g-bg"/><path id="effortArc" d="M10 64 A50 50 0 0 1 110 64" class="g-fg"/></svg>
-            <div class="g-val"><span id="effortPct" class="mono">—</span><small>last squeeze</small></div>
-            <div class="dim tiny" id="effortRolling">rolling —</div>
+            <div class="g-val"><span id="effortPct" class="mono">—</span><small>effort</small></div>
+            <div class="dim tiny" id="effortRolling">average —</div>
           </div>
           <div class="timing">
             <div class="t-bar"><span class="t-zero"></span><span class="t-mark" id="timingMark"></span></div>
-            <div class="t-scale mono"><span>-400ms</span><span>squeeze</span><span>+400ms</span></div>
+            <div class="t-scale mono"><span>too early</span><span>squeeze</span><span>too late</span></div>
             <div class="t-text" id="timingText">No stimulation yet</div>
           </div>
         </div>
       </section>
 
       <section class="panel card">
-        <div class="panel-h"><h2>Day-90 forecast</h2><span class="dim" id="twins"></span></div>
+        <div class="panel-h"><h2>Predicted recovery in 3 months</h2><span class="dim" id="twins"></span></div>
         <div class="fc-row">
           <span id="fcP50" class="big mono">—</span>
           <span class="dim" id="fcRange"></span>
         </div>
         <div class="fc-band"><div id="fcBand"></div><div id="fcMid"></div></div>
-        <p class="dim tiny">Digital twins rule out candidate patients each day, so the range narrows.</p>
+        <p class="explain">The AI tests many versions of this patient and drops those that don't match, so the range shrinks daily.</p>
       </section>
 
       <section class="panel card seizure" id="szCard" data-phase="none">
         <div class="panel-h"><h2>Seizure monitor</h2><span class="badge" id="szBadge">stable</span></div>
+        <p class="explain">Seizures can start near stroke damage. The AI predicts and calms them.</p>
         <div class="sz-main" id="szText">No abnormal activity</div>
         <div class="meter risk"><div id="szRisk"></div></div>
         <div class="sz-regions" id="szRegions"></div>
@@ -110,12 +120,15 @@
 
     <section class="panel chart">
       <div class="panel-h">
-        <h2>Recovery over time</h2>
+        <div>
+          <h2>Recovery over time</h2>
+          <p class="explain">The brain heals fastest early on. Compare what happens with the AI's plan, normal rehab, or no rehab.</p>
+        </div>
         <div class="legend">
-          <span><i class="bar ob"></i>observed</span>
-          <span><i class="bar fc"></i>forecast</span>
+          <span><i class="bar ob"></i>so far</span>
+          <span><i class="bar fc"></i>prediction</span>
           <span><i class="bar ai"></i>AI plan</span>
-          <span><i class="bar st"></i>standard rehab</span>
+          <span><i class="bar st"></i>normal rehab</span>
           <span><i class="bar no"></i>no rehab</span>
         </div>
       </div>
@@ -123,38 +136,59 @@
     </section>
 
     <section class="panel treat">
-      <div class="panel-h"><h2>Treatment</h2><button class="btn small" data-ctl="run_planner">Run AI planner</button></div>
-      <div class="plan" id="plan">
-        <div class="plan-empty">No plan yet. The AI tests hundreds of plans on copies of this brain.</div>
+      <div class="panel-h">
+        <div>
+          <h2>Treatment plan</h2>
+          <p class="explain">The AI tries hundreds of treatments on copies of this brain and picks the best one.</p>
+        </div>
+        <button class="btn small" data-ctl="run_planner">Find best treatment</button>
       </div>
-      <h3>Treatment log</h3>
+      <div class="plan" id="plan">
+        <div class="plan-empty">No plan yet. Press "Find best treatment".</div>
+      </div>
+      <h3>What's been done</h3>
       <ol class="log" id="log"></ol>
     </section>
   </main>
 
   <footer class="controls">
     <div class="group"><span class="k">Patient</span>
-      <button class="btn" data-patient="A">A · 74y</button>
-      <button class="btn" data-patient="B">B · 45y</button>
+      <button class="btn" data-patient="A" title="74 years old, large stroke">A · 74y</button>
+      <button class="btn" data-patient="B" title="45 years old, smaller stroke">B · 45y</button>
       <button class="btn" data-patient="R">Random</button>
     </div>
     <div class="group"><span class="k">Rehab</span>
       <button class="btn primary" data-ctl="dev_attempt" title="Space">Squeeze</button>
-      <button class="btn" data-ctl="end_day">End day</button>
-      <button class="btn" data-mode>Mode: Human</button>
+      <button class="btn" data-ctl="end_day" title="Skip to the next day">Next day</button>
+      <button class="btn" data-mode title="Who times the stimulation">Mode: Human</button>
     </div>
-    <div class="group"><span class="k">Fast-forward 90 days</span>
-      <button class="btn" data-ff="standard">Standard</button>
+    <div class="group"><span class="k">Skip ahead 90 days with</span>
+      <button class="btn" data-ff="standard">Normal rehab</button>
       <button class="btn ok" data-ff="ai">AI plan</button>
       <button class="btn" data-ff="none">No rehab</button>
     </div>
     <div class="group"><span class="k">Demo</span>
-      <button class="btn toggle" data-dev="dev_auto" id="autoBtn">Auto rehab</button>
-      <button class="btn danger" data-ctl="dev_seizure">Simulate seizure</button>
+      <button class="btn toggle" data-dev="dev_auto" id="autoBtn" title="Automatic squeezes every few seconds">Auto squeeze</button>
+      <button class="btn danger" data-ctl="dev_seizure">Trigger seizure</button>
       <button class="btn toggle" data-dev="dev_auto_treat" id="autoTreatBtn">AI treats seizures</button>
     </div>
     <div class="narration" id="narration"></div>
   </footer>
+
+  <div class="modal" id="help" hidden>
+    <div class="modal-card">
+      <h2 class="modal-title">How NeuroNest works</h2>
+      <p class="modal-lead">After a stroke, the brain can rewire itself, but only if it gets the right help at the right time. NeuroNest is a simulator to find that help.</p>
+      <ol class="steps">
+        <li><b>1 · The stroke</b><span>A virtual human brain (built from real MRI wiring data) has a stroke in the left motor area. The dark dots are damaged, so the right arm is weak.</span></li>
+        <li><b>2 · Rehab</b><span>Squeeze your hand at the camera. Each squeeze is the patient trying to move. The signal travels through the brain, and the stroke blocks most of it.</span></li>
+        <li><b>3 · Stimulation, at the right time</b><span>Light stimulation (blue = excite, yellow = calm) just before a squeeze helps the brain build new routes around the damage. Green lines = new connections.</span></li>
+        <li><b>4 · The AI</b><span>It predicts how well this patient will recover in 3 months, finds the best treatment by testing hundreds on copies of their brain, and spots seizures before they happen.</span></li>
+      </ol>
+      <p class="modal-note">A research simulator, not a medical device. No real patients or animals involved.</p>
+      <button class="btn primary" id="helpClose">Got it</button>
+    </div>
+  </div>
 
   <script type="module" src="app.js"></script>
 </body>

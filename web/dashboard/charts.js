@@ -14,7 +14,8 @@ export function drawRecovery(canvas, s) {
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   g.clearRect(0, 0, W, H);
   const L = 44, R = 14, T = 14, B = 26, pw = W - L - R, ph = H - T - B;
-  const X = (d) => L + (Math.min(Math.max(d, 0), 90) / 90) * pw;
+  const maxD = Math.max(90, s.day || 0);
+  const X = (d) => L + (Math.min(Math.max(d, 0), maxD) / maxD) * pw;
   const Y = (v) => T + (1 - Math.min(Math.max(v, 0), 1.05) / 1.05) * ph;
 
   // recovery window: strongest early, fading (TIME)

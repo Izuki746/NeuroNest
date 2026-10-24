@@ -220,6 +220,14 @@ class Hub:
             asyncio.get_running_loop().create_task(self.submit_attempt(t, float(msg.get("effort", 0.85)), 0.9, 0.8, 300, "dashboard"))
 
     async def _fast_forward(self, days: int, plan):
+        if self.busy:
+            return
+        day_now = self.session.state()["day"]
+        days = min(days, 91 - day_now)          # the story is the first 3 months; don't run past day 90
+        if days <= 0:
+            self.narrate("This patient is already 3 months in. Pick patient A or B to start again.")
+            self.event("info", {"text": "Already at 3 months: pick a patient to restart"})
+            return
         self.busy = f"Fast-forwarding {days} days ({plan})"
         self.narrate(f"Fast-forwarding {days} days with {plan if plan != 'ai' else 'the AI plan'}.")
         done = 0

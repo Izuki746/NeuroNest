@@ -68,7 +68,7 @@ function onState(s) {
   const ef = s.effort || {};
   $('effortPct').textContent = ef.last ? `${Math.round(ef.last * 100)}%` : '—';
   $('effortArc').style.strokeDashoffset = 157 * (1 - Math.min(1, ef.last || 0));
-  $('effortRolling').textContent = ef.rolling ? `rolling ${Math.round(ef.rolling * 100)}% · start ${Math.round((ef.session_start || 0) * 100)}%` : 'rolling —';
+  $('effortRolling').textContent = ef.rolling ? `average ${Math.round(ef.rolling * 100)}%` : 'average —';
   $('fatigue').hidden = !ef.fatigue;
 
   // timing
@@ -78,8 +78,8 @@ function onState(s) {
     const off = Math.max(-400, Math.min(400, tm.offset_ms));
     mark.style.left = `${50 + (off / 400) * 50}%`; mark.style.opacity = 1;
     mark.classList.toggle('calm', !!(lastStim && lastStim.kind === 'calm'));
-    const txt = { good: 'Good timing ✓', early: `${Math.abs(tm.offset_ms)} ms early`, late: `${Math.abs(tm.offset_ms)} ms late`, wrong_region: 'Wrong region for this treatment' }[tm.verdict] || '';
-    $('timingText').textContent = `${tm.offset_ms < 0 ? 'Stim before squeeze' : 'Stim after squeeze'} · ${txt}`;
+    const txt = { good: 'Perfect timing ✓', early: `${Math.abs(tm.offset_ms)} ms too early`, late: `${Math.abs(tm.offset_ms)} ms too late`, wrong_region: 'That region doesn\'t help movement' }[tm.verdict] || '';
+    $('timingText').textContent = txt;
     $('timingText').className = `t-text ${tm.verdict || ''}`;
   } else { mark.style.opacity = 0.25; }
 
@@ -95,6 +95,9 @@ function onState(s) {
   }
 
   renderSeizure(s.seizure);
+  seizureStory(s.seizure);
+  if (s.busy && !onState.wasBusy) setStory(s.busy.startsWith('Fast') ? 'Skipping ahead in time: watch the recovery curve grow day by day.' : 'The AI is testing hundreds of treatments on copies of this patient\'s brain…', '', 'WORKING', 1500, true);
+  onState.wasBusy = !!s.busy;
   renderPlan(s.plan, s.plan_curves, s.plan_explanation);
   drawRecovery($('chart'), s);
 
@@ -141,7 +144,7 @@ function renderPlan(plan, curves, expl) {
   const key = JSON.stringify([plan, expl, curves && curves.ai && curves.ai.p50.slice(-1)]);
   if (key === renderPlan.key) return; renderPlan.key = key;
   const el = $('plan');
-  if (!plan) { el.innerHTML = '<div class="plan-empty">No plan yet. Run the AI planner: it tests hundreds of plans on copies of this brain.</div>'; return; }
+  if (!plan) { el.innerHTML = '<div class="plan-empty">No plan yet. Press "Find best treatment".</div>'; return; }
   const end = (k) => (curves && curves[k] ? Math.round(curves[k].p50[curves[k].p50.length - 1] * 100) : '—');
   const col = plan.kind === 'calm' ? 'var(--calm)' : 'var(--excite)';
   const what = plan.target ? `${plan.kind === 'calm' ? 'Calm' : 'Excite'} ${regionName(plan.target)}` : 'Rehab without stimulation';
@@ -162,26 +165,47 @@ function onEvent(m) {
     case 'patient':
       logItems.length = 0; lastStim = null;
       addLog('info', `New patient ${d.card}: ${d.age} years, stroke in ${Object.keys(d.lesion || {}).map(regionShort).join(' + ')}`);
+      setStory(`New patient ${d.card}: ${d.age} years old with a stroke in the <b>left motor area</b> (dark dots), so their <b>right arm is weak</b>. Squeeze your hand to start rehab.`, '', 'NEW PATIENT', 7000, true);
       break;
     case 'stim': lastStim = { ...d, t: performance.now() }; break;
-    case 'attempt':
+    case 'attempt': {
       arm = { peak: Math.min(90, (d.arm_output || 0) * 90), t0: performance.now() };
-      toast(`Squeeze · effort ${Math.round((d.effort || 0) * 100)}% · arm ${Math.round((d.arm_output || 0) * 100)}%`);
+      const pct = Math.round((d.arm_output || 0) * 100);
+      const through = (d.arm_output || 0) < 0.45 ? 'The stroke blocked most of it' : (d.arm_output || 0) < 0.7 ? 'More of it is getting through now' : 'Most of it gets through now: the brain has rewired';
+      const stimTxt = { good: ' The stimulation was <b>perfectly timed</b>, so the brain rewires faster (green lines).',
+        early: ` The stimulation came <b>${Math.abs(Math.round(d.offset_ms || 0))} ms too early</b>, so it helped less.`,
+        late: ` The stimulation came <b>${Math.abs(Math.round(d.offset_ms || 0))} ms too late</b>, so it helped less.`,
+        wrong_region: ' The stimulated region isn\'t part of the movement pathway, so it didn\'t help.' }[d.verdict] || '';
+      setStory(`Squeeze (effort ${Math.round((d.effort || 0) * 100)}%): the "move" signal travelled planning → premotor → motor. ${through}, so the arm reached <b>${pct}%</b>.${stimTxt}`,
+        d.verdict === 'good' ? 'good' : (d.verdict === 'early' || d.verdict === 'late') ? 'warn' : '', 'REHAB', 4500);
       if (d.offset_ms != null && lastStim) {
         const who = lastStim.actor === 'ai' ? '<span class="v ai">AI</span>' : '';
         addLog(lastStim.kind, `${lastStim.kind === 'calm' ? 'Calm' : 'Excite'} ${regionShort(lastStim.region)} · ${Math.abs(Math.round(d.offset_ms))} ms ${d.offset_ms < 0 ? 'before' : 'after'}${who}<span class="v ${d.verdict}">${(d.verdict || '').replace('_', ' ')}</span>`, d.day);
         lastStim = null;
       }
       break;
+    }
     case 'treatment': addLog('calm', `${d.label || `${d.kind} ${d.region}`}${d.actor === 'ai' ? '<span class="v ai">AI</span>' : ''}`); break;
     case 'seizure':
       if (d.phase === 'start') addLog('seizure', `Seizure started in ${regionShort(d.onset)}`);
       else addLog('seizure', `Seizure stopped after ${d.duration_s}s${d.treatment ? ` · ${d.treatment}` : ''}`);
       break;
-    case 'plan_ready': addLog('plan', `AI planner tested ${d.candidates_tested ?? 'many'} plans → ${d.plan && d.plan.target ? `${d.plan.kind} ${regionShort(d.plan.target)} ${d.plan.offset_ms} ms` : 'standard rehab'}`); break;
-    case 'fast_forward_done': addLog('info', `Fast-forwarded ${d.days} days (${d.plan}) → arm ${Math.round((d.arm_function || 0) * 100)}%`); break;
+    case 'plan_ready':
+      addLog('plan', `AI tested ${d.candidates_tested ?? 'many'} treatments → ${d.plan && d.plan.target ? `${d.plan.kind} ${regionShort(d.plan.target)}, ${Math.abs(d.plan.offset_ms)} ms before each squeeze` : 'normal rehab'}`);
+      setStory(`The AI tested <b>${d.candidates_tested ?? 'hundreds of'} treatments</b> on copies of this brain. ${d.explanation || ''} Try <b>Skip ahead 90 days → AI plan</b> to see it.`, 'good', 'BEST TREATMENT FOUND', 9000, true);
+      break;
+    case 'fast_forward_done': {
+      const name = { ai: 'the AI plan', standard: 'normal rehab', none: 'no rehab' }[d.plan] || d.plan;
+      addLog('info', `Skipped ${d.days} days with ${name} → arm ${Math.round((d.arm_function || 0) * 100)}%`);
+      setStory(`After ${d.days} more days with <b>${name}</b>, the right arm is at <b>${Math.round((d.arm_function || 0) * 100)}%</b>. Pick a patient again to compare another treatment.`, 'good', 'TIME SKIPPED', 9000, true);
+      break;
+    }
+    case 'info': setStory(d.text || '', 'warn', 'NOTE', 5000, true); break;
     case 'day_end': addLog('info', `Day ${d.day} done · arm ${Math.round((d.arm_function || 0) * 100)}%`, d.day); break;
-    case 'fatigue': addLog('info', 'Effort dropping: fatigue detected'); break;
+    case 'fatigue':
+      addLog('info', 'Effort dropping: the patient is getting tired');
+      setStory('Effort is dropping: the patient is getting tired. Weaker squeezes mean slower recovery, so a short break helps.', 'warn', 'FATIGUE', 6000, true);
+      break;
     default: break;
   }
 }
@@ -192,10 +216,34 @@ function addLog(kind, html, day) {
   $('log').innerHTML = logItems.map((x) => `<li class="${x.kind}"><i></i><span>${x.html}</span><span class="when">day ${x.day ?? '—'}</span></li>`).join('');
 }
 
-function toast(text) {
-  const t = $('toast'); t.textContent = text; t.classList.add('show');
-  clearTimeout(toast.timer); toast.timer = setTimeout(() => t.classList.remove('show'), 1800);
+// ---------- "What's happening" caption ----------
+let storyHoldUntil = 0;
+function setStory(text, tone = '', label = "WHAT'S HAPPENING", holdMs = 6000, force = false) {
+  if (!force && performance.now() < storyHoldUntil) return;
+  $('story').dataset.tone = tone;
+  $('storyK').textContent = label;
+  $('storyText').innerHTML = text;
+  storyHoldUntil = performance.now() + holdMs;
 }
+function toast(text) { setStory(text, '', "WHAT'S HAPPENING", 2500); }
+
+function seizureStory(sz) {
+  if (!sz) { if (seizureStory.was) { seizureStory.was = false; storyHoldUntil = 0; } return; }
+  seizureStory.was = true;
+  const where = regionName(sz.onset);
+  if (sz.phase === 'pre') setStory(`The AI predicts a seizure in about <b>${sz.eta_s ?? '?'} s</b>, next to the stroke (${where}). Catching it early means it can be stopped before it spreads.`, 'warn', 'SEIZURE WARNING', 800, true);
+  else if (sz.phase === 'ictal' && !sz.treated) setStory(`<b>Seizure!</b> Abnormal activity is spreading from ${where} along the brain's wiring (red). Click a red region and press <b>Calm</b> to stop it.`, 'seizure', 'SEIZURE', 800, true);
+  else if (sz.phase === 'ictal') setStory(`${sz.treated_by === 'ai' ? 'The AI' : 'The care team'} is calming ${where} with <b>yellow light</b>. Watch the red fade as the seizure stops.`, 'seizure', 'TREATING SEIZURE', 800, true);
+  else setStory(`Seizure stopped${sz.treatment ? ` by calming ${where}` : ''}. The brain is back to normal activity.`, 'good', 'SEIZURE STOPPED', 3000, true);
+}
+
+// ---------- "How it works" ----------
+function showHelp(on) { $('help').hidden = !on; }
+$('helpBtn').addEventListener('click', () => showHelp(true));
+$('helpClose').addEventListener('click', () => showHelp(false));
+$('help').addEventListener('click', (e) => { if (e.target.id === 'help') showHelp(false); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') showHelp(false); });
+try { if (location.hash === '#help') showHelp(true); else if (location.hash !== '#nohelp' && !localStorage.getItem('nn_help_seen')) { showHelp(true); localStorage.setItem('nn_help_seen', '1'); } } catch { showHelp(true); }
 
 // ---------- arm animation (mirrors the servo: rise, hold 0.3 s, ease down over 0.8 s) ----------
 function animateArm() {
