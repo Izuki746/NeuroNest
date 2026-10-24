@@ -151,7 +151,7 @@ Subtract each region's resting rate first (use `r − r_rest`, clipped ≥ 0) so
 ```
 η_eff = η0 · plasticity · window(day) · effort_factor · gate
 ΔW    = η_eff · E ⊙ S
-W     = clip(W + ΔW, 0.2·W_pre, 3.0·W_pre)          (only existing edges; never create new ones)
+W     = clip(W + ΔW, 0.2·W_pre, 1.2·W_pre)          (only existing edges; never create new ones; upper bound tuned for stable recovery dynamics)
 η0 = 0.02 (tune so standard rehab gives ~ +15–25 percentage points over 90 days for card B)
 window(day)   = 0.25 + 0.75 · exp(−day / window_tau_days)
 effort_factor = 0.2 + 0.8 · effort

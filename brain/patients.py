@@ -48,9 +48,9 @@ def build_patient(model, card: str, seed: int, age: int, lesion: dict, traits: d
              ).astype(np.float32)  # existing edges only
     ones, k_base = np.ones(76), np.full(76, p.k_base)
     b_pre = model.baseline_drive(W_pre, ones, k_base)
-    M_base = model.run(W_pre, ones, k_base, b_pre, 1.0, noise=False).peak_M
-    h0, hmax, W = apply_lesion(c, W_pre, lesion)
     b, k_ih = apply_overcomp(c, b_pre, p.k_base, traits["overcomp"])
+    M_base = model.run(W_pre, ones, k_ih, b, 1.0, noise=False).peak_M
+    h0, hmax, W = apply_lesion(c, W_pre, lesion)
     return Patient(card, age, seed, dict(lesion), h0, hmax, dict(traits), W, W_pre, W.copy(), k_ih, b, float(M_base))
 
 
