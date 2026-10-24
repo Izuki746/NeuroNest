@@ -1,0 +1,14 @@
+numpy
+scipy
+pandas
+pyarrow
+scikit-learn
+lightgbm
+fastapi
+uvicorn[standard]
+websockets
+python-dotenv
+psycopg[binary]
+google-genai
+elevenlabs
+qrcode

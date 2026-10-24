@@ -1,0 +1,12 @@
+.env
+.venv/
+.venv-hands/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.DS_Store
+Thumbs.db
+storage/offline/
+ai/data/
+*.zip
+*.log
