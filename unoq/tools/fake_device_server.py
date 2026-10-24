@@ -65,6 +65,17 @@ class Handler(BaseHTTPRequestHandler):
             body = json.dumps(device_state()).encode()
         elif self.path.startswith("/api/health"):
             body = json.dumps({"ok": True, "t_ms": time.monotonic() * 1000}).encode()
+        elif self.path == "/":
+            d = device_state()
+            body = (f"<h2>NeuroNest fake device server is running</h2>"
+                    f"<p>The Uno Q reads <a href='/api/device'>/api/device</a> (refresh to see it change).</p>"
+                    f"<pre>{d['lcd1']}\n{d['lcd2']}\nservo={d['servo']}</pre>").encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         else:
             self.send_response(404); self.end_headers(); return
         self.send_response(200)
