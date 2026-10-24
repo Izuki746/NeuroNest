@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "data_path": "ai/data/population.npz",
+  "patients": 1200,
+  "train_patients": 960,
+  "test_patients": 240,
+  "seed": 42,
+  "day90_mae": {
+    "forecaster": 0.07290772305430293,
+    "proportional_recovery": 0.4299086928367615,
+    "last_value": 0.25355663895606995
+  },
+  "p10_p90_coverage": 0.6958333333333333,
+  "mean_interval_width": 0.30039033215107075,
+  "calibration": [
+    {
+      "count": 48,
+      "mean_interval_width": 0.0659947741557183,
+      "coverage": 0.625
+    },
+    {
+      "count": 48,
+      "mean_interval_width": 0.13129975585218695,
+      "coverage": 0.8125
+    },
+    {
+      "count": 48,
+      "mean_interval_width": 0.2599380228697105,
+      "coverage": 0.75
+    },
+    {
+      "count": 48,
+      "mean_interval_width": 0.4128010975289164,
+      "coverage": 0.7916666666666666
+    },
+    {
+      "count": 48,
+      "mean_interval_width": 0.6319180103488217,
+      "coverage": 0.5
+    }
+  ],
+  "note": "Synthetic simulated patients only; not clinically validated."
+}

@@ -39,7 +39,7 @@ NO_REHAB_PLAN = {"target": None, "sessions_per_day": 0}
 class _NullTwins:
     """Used if ai.twins is missing/broken so the live demo never crashes."""
 
-    def update(self, day_result) -> None:
+    def update(self, day_result, **_observed) -> None:
         return None
 
     def forecast(self):
@@ -91,7 +91,16 @@ class Session:
     def _make_twins(self):
         try:
             from ai.twins import TwinFilter
-            return TwinFilter(self.info(), n=150, seed=self.seed)
+            twins = TwinFilter(
+                self.info(), n=150, seed=self.seed, model=self.model,
+                W_pre=self.pt.W_pre)
+            twins.update(DayResult(
+                day=0, arm_function=self._arm_fn, mean_effort=0.0,
+                attempts=0, window_level=1.0, stim_count=0))
+            forecast = twins.forecast()
+            self._forecast = {key: forecast[key] for key in (
+                "p10", "p50", "p90", "n_alive")}
+            return twins
         except Exception as e:  # noqa: BLE001 - never crash the demo for the AI layer
             log.warning(
                 "TwinFilter unavailable (%s); running without twins", e)
@@ -206,7 +215,8 @@ class Session:
         with self._lock:
             dr = self._close_day(self.attempts_today,
                                  self._efforts_today, self._stim_count_today)
-            self._notify_twins(dr)
+            day_attempts = [a for a in self.attempt_log if a["day"] == dr.day]
+            self._notify_twins(dr, attempts=day_attempts)
             return dr
 
     def fast_forward(self, days: int, plan: Optional[dict] = None) -> list[DayResult]:
@@ -255,7 +265,7 @@ class Session:
                     attempts, efforts, attempts if stim_on else 0)
                 out.append(dr)
                 if (n + 1) % TWIN_EVERY_DAYS == 0 or n == days - 1:
-                    self._notify_twins(dr)
+                    self._notify_twins(dr, plan=p)
             self._r_rest = None
             return out
 
@@ -292,6 +302,8 @@ class Session:
     def set_plan(self, plan: Optional[dict]) -> None:
         with self._lock:
             self.plan = None if plan is None else dict(plan)
+            if hasattr(self.twins, "set_plan"):
+                self.twins.set_plan(self.plan)
 
     def planned_stim(self) -> Optional[dict]:
         p = self.plan
@@ -369,9 +381,10 @@ class Session:
                             "stim_count": dr.stim_count, "plan": self.plan})
         return dr
 
-    def _notify_twins(self, dr: DayResult) -> None:
+    def _notify_twins(self, dr: DayResult, *, attempts: list[dict] | None = None,
+                      plan: Optional[dict] = None) -> None:
         try:
-            self.twins.update(dr)
+            self.twins.update(dr, attempts=attempts, plan=plan)
             f = self.twins.forecast()
             if f:
                 self._forecast = {k: f[k] for k in (

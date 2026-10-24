@@ -276,12 +276,15 @@ class BatchCohort:
 
     # ---- the day loop
     def run_days(self, days: int, plans=None, rng: Optional[np.random.Generator] = None,
-                 efforts: Optional[np.ndarray] = None) -> dict:
+                 efforts: Optional[np.ndarray] = None,
+                 representative_attempts: int = REP_ATTEMPTS) -> dict:
         """Advance every patient `days` days. plans: None (standard rehab), one dict, or a list of P dicts.
         efforts: optional [P] to fix the practice effort (else ~ N(effort_mean, 0.1)).
         Returns arrays [P, days]: arm, mean_effort, attempts, stim_count; plus arm0 [P] (before day 1)."""
         rng = rng or np.random.default_rng(0)
         P, eng, tr = self.P, self.eng, self.traits
+        if representative_attempts < 1:
+            raise ValueError("representative_attempts must be at least 1")
         if plans is None or isinstance(plans, dict):
             plans = [plans] * P
         pa = _plan_arrays(self.m, plans, tr)
@@ -299,12 +302,12 @@ class BatchCohort:
             attempts = rng.binomial(sess, np.clip(tr["adherence"], 0, 1)) * aps
             stim_on = (pa["tgt"] >= 0) & (
                 label >= pa["start"]) & (attempts > 0)
-            n_rep = np.minimum(REP_ATTEMPTS, attempts)
+            n_rep = np.minimum(representative_attempts, attempts)
             scale = attempts / np.maximum(n_rep, 1)
             stim = StimSpec(
                 np.where(stim_on, pa["tgt"], -1), pa["sign"], pa["inten"], pa["off"])
             eff_sum = np.zeros(P)
-            for rep in range(REP_ATTEMPTS):
+            for rep in range(representative_attempts):
                 active = n_rep > rep
                 if not active.any():
                     break
