@@ -371,9 +371,12 @@ Dashboard: `http://localhost:8000/dashboard/` · Phones: `http://<laptop-ip>:800
 
 ## 8. Team, ownership, timeline
 
+> **Ownership update (Sat ~18:00):** B's hardware is done, so **B now also owns Tiger Data storage (`storage/`: schema.sql, tiger.py with `TigerWriter` + `bulk_write_population` exactly as specified in PERSON_C_EXPERIENCE.md §7) and the big-screen dashboard (`web/dashboard/`, spec in PERSON_C_EXPERIENCE.md §5).** C keeps the server hub, webcam hands + effort, keyboard backup, phone page, Gemini/ElevenLabs narration, Devpost and presenting. C's server imports `storage.tiger.TigerWriter` and serves `web/dashboard` statically. Interfaces are unchanged.
+
+
 | | A: Brain + AI | B: Hardware | C: Experience |
 |---|---|---|---|
-| Folders | `brain/`, `ai/` | `unoq/` | `inputs/`, `storage/`, `server/`, `web/` |
+| Folders | `brain/`, `ai/` | `unoq/`, **`storage/`**, **`web/dashboard/`** | `inputs/`, `server/`, `web/phone/` |
 | Ships first (hour 1) | `brain/fake.py` + `brain/layout.py` | Uno Q on WiFi + LED example | server skeleton serving fake state + hands openness print |
 
 **Checkpoints**

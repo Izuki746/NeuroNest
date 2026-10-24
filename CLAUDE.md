@@ -6,8 +6,8 @@ Stroke-recovery flight simulator: a virtual human brain (The Virtual Brain `conn
 1. Read `handoff/SHARED_CONTEXT.md` (project, hardware, team, **interface contract in Section 7**).
 2. Ask your human which person they are, then read their brief:
    - **A, Brain + AI:** `handoff/PERSON_A_BRAIN_AI.md` (owns `brain/`, `ai/`)
-   - **B, Hardware:** `handoff/PERSON_B_HARDWARE.md` (owns `unoq/`)
-   - **C, Experience:** `handoff/PERSON_C_EXPERIENCE.md` (owns `inputs/`, `storage/`, `server/`, `web/`, Devpost)
+   - **B, Hardware:** `handoff/PERSON_B_HARDWARE.md` (owns `unoq/`, `storage/`, `web/dashboard/`; see the ownership update in SHARED_CONTEXT §8)
+   - **C, Experience:** `handoff/PERSON_C_EXPERIENCE.md` (owns `inputs/`, `server/`, `web/phone/`, narration, Devpost)
 
 ## Rules
 - Don't change interfaces in SHARED_CONTEXT §7 without team agreement; if changed, update that file in the same commit.
