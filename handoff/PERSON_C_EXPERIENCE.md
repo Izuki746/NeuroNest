@@ -210,6 +210,7 @@ Exactly SHARED_CONTEXT §7.5. LCD text by phase:
 | Fatigue | `DAY 23  ARM 47% ` | `TIRED? BREATHE  ` | by arm |
 | Fast-forward | `>> DAY 61       ` | `FORECAST 78%    ` | by arm |
 `lcd3/lcd4` (misc LCD): `DAY90 FORECAST  ` / `78% +/- 9       `. Pad/truncate to exactly 16 ASCII chars.
+Also set `stim` to `"excite"`/`"calm"` for ~300 ms after each stimulation (else `null`). B's board shows it on an onboard RGB LED (blue/yellow).
 
 ---
 

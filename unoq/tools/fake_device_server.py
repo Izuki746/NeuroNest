@@ -51,7 +51,12 @@ def device_state():
         l1, l2 = f"DAY {day}  ARM {arm}%", f"EFFORT {70 + int(20 * math.sin(t))}%"
         rgb = [255, 40, 40] if arm < 35 else [255, 160, 0] if arm < 70 else [40, 220, 80]
     servo = int(90 * arm / 100) if (t > 8 and phase < 0.4) else 0
+    # alternate excite/calm stimulation pulses during rehab so LED3 shows both colours
+    stim = None
+    if t > 8 and phase < 0.3:
+        stim = "excite" if int(t / 2) % 2 == 0 else "calm"
     return {
+        "stim": stim,
         "seq": int(t * 10),
         "leds": "".join(leds),
         "lcd1": pad(l1), "lcd2": pad(l2), "rgb": rgb, "servo": servo,

@@ -48,6 +48,15 @@ def fetch_device():
     return data
 
 
+def rgb_leds(d):
+    """6 chars for the board's RGB LEDs: LED3 = stimulation, LED4 = status colour (from the LCD rgb)."""
+    stim = d.get("stim")
+    led3 = {"excite": "001", "calm": "110"}.get(stim, "000")     # blue / yellow
+    r, g, b = (list(d.get("rgb", [40, 80, 255])) + [0, 0, 0])[:3]
+    led4 = "".join("1" if v >= 128 else "0" for v in (r, g, b))   # red / amber / green / blue / white
+    return led3 + led4
+
+
 def apply(d):
     leds = str(d.get("leds", ""))[:104].ljust(104, "0")
     l1 = str(d.get("lcd1", "")).replace("|", " ")[:16]
@@ -56,6 +65,7 @@ def apply(d):
     call("setLeds", leds)
     call("setLcd", f"{l1}|{l2}|{int(r)}|{int(g)}|{int(b)}")
     call("setServo", int(d.get("servo", 0)))
+    call("setRgbLeds", rgb_leds(d))
 
 
 def loop():

@@ -6,6 +6,8 @@
 //   setLcd(String payload)     "line1|line2|r|g|b"   (16-char lines, rgb 0..255)
 //   setServo(int angle)        0..90 target; loop() moves there smoothly
 //   demo(int on)               1 = offline animation, 0 = follow the server
+//   setRgbLeds(String s)       6 chars '0'/'1': LED3 r,g,b then LED4 r,g,b
+//                              LED3 = stimulation (blue excite / yellow calm), LED4 = patient status (red/amber/green)
 //
 // Handlers only copy data into buffers; all hardware I/O happens in loop() so Bridge calls stay fast.
 // Optional libraries are detected with __has_include, so the sketch still compiles without them.
@@ -44,6 +46,11 @@ int lcdR = 40, lcdG = 80, lcdB = 255;
 bool lcdDirty = true;
 volatile int servoTarget = 0;
 volatile bool demoMode = false;
+String pendingRgb = "000000";
+bool rgbDirty = true;
+
+// Onboard MCU RGB LEDs are active LOW (LOW = on)
+const int RGB_PINS[6] = {LED3_R, LED3_G, LED3_B, LED4_R, LED4_G, LED4_B};
 
 float servoPos = 0;
 unsigned long lastServoMs = 0;
@@ -75,6 +82,18 @@ void setLcd(String payload) {
 void setServo(int angle) { servoTarget = constrain(angle, 0, 90); }
 
 void demo(int on) { demoMode = (on != 0); }
+
+void setRgbLeds(String s) {
+  pendingRgb = s;
+  rgbDirty = true;
+}
+
+void applyRgb(const String &s) {
+  for (int i = 0; i < 6; i++) {
+    bool on = (i < (int)s.length()) && s[i] == '1';
+    digitalWrite(RGB_PINS[i], on ? LOW : HIGH);
+  }
+}
 
 // ---------- Hardware helpers ----------
 void drawLedString(const String &s) {
@@ -198,6 +217,14 @@ void runDemo() {
 
   int lift = (sec > 8 && attemptPhase < 0.4f) ? (int)(90.0f * arm / 100.0f) : 0;
   servoTarget = lift;
+
+  // LED3: blue "excite" light during each attempt; LED4: patient status colour
+  String rgb = (sec > 8 && attemptPhase < 0.3f) ? "001" : "000";
+  if (sec < 5)       rgb += "001";   // blue = ready
+  else if (arm < 35) rgb += "100";   // red
+  else if (arm < 70) rgb += "110";   // amber (red + green)
+  else               rgb += "010";   // green
+  applyRgb(rgb);
 }
 
 // ---------- Arduino entry points ----------
@@ -209,6 +236,9 @@ void setup() {
   Bridge.provide("setLcd", setLcd);
   Bridge.provide("setServo", setServo);
   Bridge.provide("demo", demo);
+  Bridge.provide("setRgbLeds", setRgbLeds);
+
+  for (int i = 0; i < 6; i++) { pinMode(RGB_PINS[i], OUTPUT); digitalWrite(RGB_PINS[i], HIGH); }
 
   matrix.begin();
   matrix.setGrayscaleBits(3);              // values 0..7
@@ -237,6 +267,7 @@ void loop() {
   } else {
     if (ledsDirty) { ledsDirty = false; drawLedString(pendingLeds); }
     if (lcdDirty)  { lcdDirty = false; updateLcd(); }
+    if (rgbDirty)  { rgbDirty = false; applyRgb(pendingRgb); }
   }
   updateServo(servoTarget);
 }
