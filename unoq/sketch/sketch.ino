@@ -157,7 +157,10 @@ void updateServo(int target) {
 // ---------- Offline demo (no network) ----------
 // ~40 s loop: healthy brain -> stroke in left motor area -> rehab attempts -> recovery.
 // Slow changes only (no fast flashing).
-bool isLeftMotor(int r, int c) { return r >= 2 && r <= 4 && c >= 1 && c <= 4; }
+// Left motor network cells from brain/layout.py: lM1 (3,1), lPMCVL (2,0), lPMCDL (2,4), lPMCM (3,4)
+bool isLeftMotor(int r, int c) {
+  return (r == 3 && c == 1) || (r == 2 && c == 0) || (r == 2 && c == 4) || (r == 3 && c == 4);
+}
 
 // The Zephyr toolchain on the UNO Q doesn't link libm, so no sinf/fmod/fabsf: tiny replacements.
 float absf(float x) { return x < 0 ? -x : x; }

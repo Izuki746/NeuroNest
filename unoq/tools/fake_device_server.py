@@ -15,7 +15,8 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 START = time.monotonic()
-LEFT_MOTOR = {(r, c) for r in range(2, 5) for c in range(1, 5)}
+# Left motor network cells from brain/layout.py: lM1, lPMCVL, lPMCDL, lPMCM
+LEFT_MOTOR = {(3, 1), (2, 0), (2, 4), (3, 4)}
 
 
 def pad(s):
