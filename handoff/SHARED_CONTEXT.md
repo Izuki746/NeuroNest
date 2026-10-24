@@ -340,6 +340,7 @@ controls += dev_attempt (dashboard Squeeze button / Space), dev_auto {on}, dev_s
 - `rgb`: Grove backlight. **Arm-function colour scale:** <0.35 red `[255,40,40]`, 0.35–0.7 amber `[255,160,0]`, ≥0.7 green `[40,220,80]`; calibrating = white `[200,200,200]`; idle/no patient = blue `[40,80,255]`.
 - `servo`: **0–90** degrees target (0 = arm down). The sketch smooths movement. Per attempt, the server sends a rise to `round(90*min(arm_output,1))`, then a decay back to 0 over ~800 ms.
 - `seq` increments on every change; the device can skip duplicates.
+- `reset_id` (int): increments on every new patient / reset. When it changes, the Uno Q wipes its displays (LEDs, LCD, RGB, arm down) and redraws from scratch. C's server must increment it in `new_patient` and `reset` (see `web/dashboard/dev_server.py`).
 - `stim` (optional): `"excite"` | `"calm"` | `null`. Set while a stimulation is active (~150–300 ms so it's visible). The Uno Q shows it on onboard RGB **LED3** (blue = excite, yellow = calm). Onboard **LED4** mirrors `rgb` (each channel on if ≥128): red/amber/green status.
 - Colours: the 8×13 LED matrix is single-colour (brightness only). Colour lives on the Grove LCD backlight and the onboard RGB LEDs 3/4.
 

@@ -83,6 +83,10 @@ void setServo(int angle) { servoTarget = constrain(angle, 0, 90); }
 
 void demo(int on) { demoMode = (on != 0); }
 
+// Website reset / new patient: wipe everything back to the initial state (done in loop()).
+volatile bool resetPending = false;
+void resetAll() { resetPending = true; }
+
 void setRgbLeds(String s) {
   pendingRgb = s;
   rgbDirty = true;
@@ -281,6 +285,7 @@ void setup() {
   Bridge.provide("setServo", setServo);
   Bridge.provide("demo", demo);
   Bridge.provide("setRgbLeds", setRgbLeds);
+  Bridge.provide("resetAll", resetAll);
 
   for (int i = 0; i < 6; i++) { pinMode(RGB_PINS[i], OUTPUT); digitalWrite(RGB_PINS[i], HIGH); }
 
@@ -310,7 +315,23 @@ void setup() {
   Monitor.println("NeuroNest sketch ready");
 }
 
+void doReset() {
+  for (int i = 0; i < N_LEDS; i++) frame[i] = (i % 13 == 6) ? 1 : 0;   // blank brain, divider only
+  matrix.draw(frame);
+  pendingLeds = ""; ledsDirty = false;
+  applyRgb("000000"); pendingRgb = "000000";
+#if HAVE_LCD
+  lcd.clear();
+#endif
+  lastShown1 = ""; lastShown2 = ""; lastR = lastG = lastB = -1;            // force the next LCD write
+  lcdLine1 = "NEURONEST"; lcdLine2 = "NEW PATIENT..."; lcdR = 40; lcdG = 80; lcdB = 255;
+  lcdDirty = true;
+  servoTarget = 0;                                                       // arm back down (smoothly)
+  demoMode = false;
+}
+
 void loop() {
+  if (resetPending) { resetPending = false; doReset(); }
   if (demoMode) {
     runOffline();
   } else {

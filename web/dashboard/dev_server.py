@@ -108,6 +108,8 @@ class Hub:
         self.intro_until = now_ms() + 4000
         self.busy = None
         self.device_seq, self.device_last = 0, None
+        self._led_act = None                                  # clear LED smoothing from the previous patient
+        self.reset_id = getattr(self, "reset_id", 0) + 1      # tells the Uno Q to wipe its displays and start fresh
         self.event("patient", {"card": card, "age": info["age"], "lesion": info["lesion"],
                                "regions": self.names, "centres": info["centres"]})
         self.narrate(f"Patient {card}: {info['age']} years old, stroke in the left motor cortex. "
@@ -427,7 +429,7 @@ class Hub:
         if payload != self.device_last:
             self.device_seq += 1
             self.device_last = payload
-        return {"seq": self.device_seq, **payload}
+        return {"seq": self.device_seq, "reset_id": self.reset_id, **payload}
 
     # ---------- loops ----------
     async def run(self):

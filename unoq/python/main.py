@@ -75,13 +75,23 @@ def apply(d):
     call("setRgbLeds", rgb_leds(d))
 
 
+last_reset = None
+
+
 def loop():
-    global last_seq, fails, last_log, last_full
+    global last_seq, fails, last_log, last_full, last_reset
     try:
         d = fetch_device()
         fails = 0
         set_demo(False)
         now = time.monotonic()
+        # website reset / new patient: wipe the board back to its initial state, then redraw from the server
+        if d.get("reset_id") != last_reset:
+            if last_reset is not None:
+                call("resetAll")
+                print("reset from website: board cleared")
+            last_reset = d.get("reset_id")
+            last_seq = None
         # redraw on every change, and also every 2 s regardless, so the board can never drift from the website
         if d.get("seq") != last_seq or now - last_full > FULL_REFRESH_S:
             apply(d)
