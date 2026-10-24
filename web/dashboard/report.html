@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Progress Report</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="report.css">
+</head>
+<body class="report-page">
+  <header class="top">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"></span>
+      <div>
+        <h1>NeuroNest · Progress report</h1>
+        <p class="sub">Daily recovery notes for a simulated stroke patient</p>
+      </div>
+    </div>
+    <div class="status">
+      <span class="pill" id="source">—</span>
+      <button class="btn" id="refresh">↻ Regenerate</button>
+      <button class="btn" onclick="window.print()">Print / save PDF</button>
+      <a class="btn ghost" href="./">← Back to dashboard</a>
+    </div>
+  </header>
+
+  <main class="rep">
+    <div class="loading" id="loading"><span></span>Writing the report…</div>
+    <div class="rep-error" id="error" hidden></div>
+
+    <section class="rep-top" id="top" hidden>
+      <div class="panel rep-patient">
+        <h2>Patient</h2>
+        <div class="rep-big" id="pTitle">—</div>
+        <div class="dim" id="pSub"></div>
+        <div class="rep-stats">
+          <div><b id="sStart">—</b><small>arm on day 1</small></div>
+          <div><b id="sNow">—</b><small>arm now</small></div>
+          <div><b id="sGain">—</b><small>points gained</small></div>
+          <div><b id="sDays">—</b><small>days</small></div>
+        </div>
+      </div>
+      <div class="panel rep-summary">
+        <h2>Summary</h2>
+        <p id="summary"></p>
+        <ul id="highlights"></ul>
+        <h3>Recommendation</h3>
+        <p id="rec"></p>
+      </div>
+    </section>
+
+    <section class="panel rep-chart" id="chartBox" hidden>
+      <h2>Right-arm strength by day</h2>
+      <canvas id="repChart"></canvas>
+    </section>
+
+    <section class="panel" id="daysBox" hidden>
+      <div class="panel-h"><h2>Day by day</h2><span class="dim tiny">notes written by <span id="who">—</span></span></div>
+      <ol class="days" id="days"></ol>
+    </section>
+
+    <p class="rep-note dim">Simulated patient in a research simulator. Not medical advice.</p>
+  </main>
+
+  <script type="module" src="report.js"></script>
+</body>
+</html>

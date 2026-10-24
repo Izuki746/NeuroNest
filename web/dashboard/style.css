@@ -204,6 +204,7 @@ h3 { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: v
 .btn.ok { border-color: rgba(52,211,153,.55); }
 .btn.danger { border-color: rgba(255,59,92,.5); }
 .btn.ghost { background: transparent; border-color: rgba(56,217,245,.45); }
+a.btn { text-decoration: none; display: inline-block; }
 .btn.excite { border-color: var(--excite); } .btn.calm { border-color: var(--calm); }
 .btn.toggle.on { background: rgba(52,211,153,.18); border-color: rgba(52,211,153,.6); }
 .btn.toggle.on::before { content: "✓ "; color: var(--ok); }

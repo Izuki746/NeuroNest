@@ -110,10 +110,50 @@ class Hub:
         self.device_seq, self.device_last = 0, None
         self._led_act = None                                  # clear LED smoothing from the previous patient
         self.reset_id = getattr(self, "reset_id", 0) + 1      # tells the Uno Q to wipe its displays and start fresh
+        self.days_log: dict[int, dict] = {}                   # per-day record for the progress report
+        self._new_acc()
+        self.report_cache = None
         self.event("patient", {"card": card, "age": info["age"], "lesion": info["lesion"],
                                "regions": self.names, "centres": info["centres"]})
         self.narrate(f"Patient {card}: {info['age']} years old, stroke in the left motor cortex. "
                      f"Their right arm is weak.")
+
+    # ---------- per-day record (progress report) ----------
+    def _new_acc(self):
+        self.acc = {"attempts": 0, "effort_sum": 0.0, "stims": 0, "good": 0, "early": 0, "late": 0, "wrong": 0, "seizures": 0}
+
+    def _finalize_day(self, day: int, arm: float, attempts=None, effort=None, stims=None, planned_good=False):
+        a = self.acc
+        att = a["attempts"] if attempts is None else int(attempts)
+        eff = (a["effort_sum"] / a["attempts"] if a["attempts"] else 0.0) if effort is None else float(effort)
+        st = a["stims"] if stims is None else int(stims)
+        self.days_log[int(day)] = {
+            "day": int(day), "arm": round(float(arm), 4), "attempts": att, "effort": round(eff, 3), "stims": st,
+            "good": st if planned_good else a["good"], "early": 0 if planned_good else a["early"],
+            "late": 0 if planned_good else a["late"], "wrong": 0 if planned_good else a["wrong"],
+            "seizures": a["seizures"], "plan": (self.plan or {}).get("target") if planned_good else None}
+        self._new_acc()
+
+    def _record_attempt(self, res):
+        a = self.acc
+        a["attempts"] += 1
+        a["effort_sum"] += float(res.effort)
+        if res.stim_verdict:
+            a["stims"] += 1
+            key = {"good": "good", "early": "early", "late": "late", "wrong_region": "wrong"}.get(res.stim_verdict)
+            if key:
+                a[key] += 1
+
+    def report_days(self) -> list[dict]:
+        days = [self.days_log[d] for d in sorted(self.days_log)]
+        st = self.session.state()
+        if self.acc["attempts"] or self.acc["seizures"]:          # today, in progress
+            a = self.acc
+            days.append({"day": st["day"], "arm": round(float(st["arm_function"]), 4), "attempts": a["attempts"],
+                         "effort": round(a["effort_sum"] / a["attempts"], 3) if a["attempts"] else 0.0, "stims": a["stims"],
+                         "good": a["good"], "early": a["early"], "late": a["late"], "wrong": a["wrong"],
+                         "seizures": a["seizures"], "partial": True})
+        return days
 
     # ---------- messaging ----------
     def event(self, kind: str, data: dict):
@@ -176,8 +216,10 @@ class Hub:
                                "verdict": res.stim_verdict, "gate": round(res.gate, 2), "source": source,
                                "day": res.day, "attempts_today": res.attempts_today})
         self._check_fatigue()
+        self._record_attempt(res)
         st_day = self.session.state()["day"]
         if st_day != self.last_day:
+            self._finalize_day(self.last_day, res.arm_function)
             self.event("day_end", {"day": self.last_day, "arm_function": round(res.arm_function, 3)})
             self.last_day = st_day
 
@@ -199,6 +241,7 @@ class Hub:
             self.new_patient(str(msg.get("card", "B")).upper())
         elif a == "end_day":
             dr = await asyncio.to_thread(self.session.end_day)
+            self._finalize_day(dr.day, dr.arm_function)
             self.event("day_end", {"day": dr.day, "arm_function": round(dr.arm_function, 3)})
             self.last_day = self.session.state()["day"]
         elif a == "fast_forward":
@@ -235,7 +278,10 @@ class Hub:
         done = 0
         while done < days:
             n = min(3, days - done)
-            await asyncio.to_thread(self.session.fast_forward, n, plan)
+            results = await asyncio.to_thread(self.session.fast_forward, n, plan)
+            for dr in results or []:
+                self._finalize_day(dr.day, dr.arm_function, attempts=dr.attempts, effort=dr.mean_effort,
+                                   stims=dr.stim_count, planned_good=(plan == "ai"))
             done += n
             await asyncio.sleep(0.06)
         self.last_day = self.session.state()["day"]
@@ -283,6 +329,7 @@ class Hub:
             if t - sz["t0"] > 3000:
                 sz["phase"], sz["t_ictal"], sz["last_spread"] = "ictal", t, t
                 sz["regions"] = {sz["onset"]: 0.5}
+                self.acc["seizures"] += 1
                 self.event("seizure", {"phase": "start", "onset": sz["onset"]})
                 self.narrate(f"Seizure starting in {sz['onset']}: activity is spreading.")
         elif sz["phase"] == "ictal":
@@ -480,6 +527,22 @@ async def health():
 @app.get("/api/device")
 async def device():
     return JSONResponse(HUB.device())
+
+
+@app.get("/api/report")
+async def report(force: int = 0):
+    """Daily progress report (Gemini if GEMINI_API_KEY is set, else an automatic template). Cached per state."""
+    from report_gen import build_report
+    days = HUB.report_days()
+    key = (HUB.reset_id, len(days), days[-1]["day"] if days else 0, days[-1].get("attempts") if days else 0)
+    if not force and HUB.report_cache and HUB.report_cache[0] == key:
+        return JSONResponse(HUB.report_cache[1])
+    info = HUB.info
+    patient = {"card": info["card"], "age": info["age"], "lesion": info["lesion"], "affected_arm": info.get("affected_arm", "right")}
+    rep = await asyncio.to_thread(build_report, patient, [dict(d) for d in days], HUB.plan, HUB.plan_expl)
+    rep["generated_t_ms"] = now_ms()
+    HUB.report_cache = (key, rep)
+    return JSONResponse(rep)
 
 
 @app.post("/api/control")
