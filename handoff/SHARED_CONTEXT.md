@@ -184,7 +184,7 @@ neuronest/
 ### 7.2 Environment (`.env`, never committed; `.env.example` is committed)
 ```
 GEMINI_API_KEY=
-GEMINI_MODEL=gemini-2.5-flash        # check AI Studio for the current fast model and update
+GEMINI_MODEL=gemini-3.8-flash        # check AI Studio for the current fast model and update
 ELEVENLABS_API_KEY=
 ELEVENLABS_VOICE_ID=                 # pick a calm voice in the ElevenLabs voice library
 ELEVENLABS_MODEL=eleven_flash_v2_5   # low-latency model; confirm in the ElevenLabs docs

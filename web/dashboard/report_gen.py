@@ -20,6 +20,7 @@ from pathlib import Path
 log = logging.getLogger("report")
 ROOT = Path(__file__).resolve().parents[2]
 MAX_DAYS = 90
+FALLBACK_MODELS = ("gemini-3.8-flash", "gemini-flash-latest")
 
 try:
     from dotenv import load_dotenv
@@ -86,6 +87,9 @@ Return ONLY JSON with this shape:
   "recommendation": "1-2 sentences on what to do next (mention the recovery window closing over time)",
   "days": [{{"day": <int>, "note": "one short sentence for that day"}}]}}
 Include exactly one entry in "days" for every day in the data, in order. Keep each note under 25 words.
+Always write arm strength and effort as percentages (0.264 → 26%), never as decimals.
+A day with "partial": true is TODAY and still in progress: describe it as "so far today", never as aborted or failed.
+Seizures in this simulator are detected early and treated; mention them calmly.
 Mention the recovery window (faster early, slower later) where relevant."""
 
 
@@ -112,15 +116,26 @@ def build_report(patient: dict, days: list[dict], plan: dict | None = None, plan
     try:
         from google import genai
         from google.genai import types
-        model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
         compact = [{k: (round(v, 3) if isinstance(v, float) else v) for k, v in d.items() if not k.startswith("_")} for d in days]
         prompt = PROMPT.format(patient=json.dumps(patient), plan=json.dumps(plan), plan_expl=json.dumps(plan_expl),
                                days=json.dumps(compact))
         client = genai.Client(api_key=key)
-        resp = client.models.generate_content(
-            model=model, contents=prompt,
-            config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.4))
-        data = json.loads(resp.text)
+        # try the configured model first, then current defaults (Google retires model names over time)
+        configured = os.getenv("GEMINI_MODEL", "").strip()
+        candidates = [m for m in (configured, *FALLBACK_MODELS) if m]
+        data, last_err, model = None, None, None
+        for model in dict.fromkeys(candidates):
+            try:
+                resp = client.models.generate_content(
+                    model=model, contents=prompt,
+                    config=types.GenerateContentConfig(response_mime_type="application/json", temperature=0.4))
+                data = json.loads(resp.text)
+                break
+            except Exception as e:
+                last_err = e
+                log.warning("Gemini model %s failed: %s", model, str(e)[:160])
+        if data is None:
+            raise last_err or RuntimeError("no Gemini model worked")
         notes = {int(x["day"]): str(x.get("note", "")) for x in data.get("days", []) if "day" in x}
         for d in base["days"]:
             if notes.get(d["day"]):

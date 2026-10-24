@@ -15,3 +15,6 @@ One line each: `time (UTC) · initials · decision / assumption`.
 - 2026-10-24 20:58 UTC · A · Twin updates use three representative attempts with a twin-only 10 ms engine step to meet the <2 s target; until a trained surrogate exists, day-90 forecasts use a particle-weighted compact recovery projection rather than full 90-day simulations.
 - 2026-10-24 21:21 UTC · A · Forecaster and surrogate are trained on the 1,000 currently completed synthetic patients (80/20 held-out forecaster split); metrics explicitly state synthetic-only scope and observed quantile coverage.
 - 2026-10-24 21:21 UTC · A · Planner verifies the top three candidates for seven days on 20 matched twins, then projects to day 90 with the surrogate to fit the 10 s budget. On current training data both demo cards select three daily practice sessions without stimulation; the expected card-specific stimulation plans remain an unmet acceptance target, so cached plans are not presented as clinically optimal.
+- 2026-10-24 · B · .gitattributes: ai/models/** kept byte-exact (Windows CRLF conversion corrupted LightGBM models).
+- 2026-10-24 · B · Gemini model default gemini-3.8-flash (2.5-flash retired for new keys); report_gen falls back across models.
+- 2026-10-24 · B · dev_server resolves fast_forward plan names (ai/standard/none) to plan dicts per contract §7.4 before calling Session.

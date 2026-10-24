@@ -274,20 +274,27 @@ class Hub:
             self.event("info", {"text": "Already at 3 months: pick a patient to restart"})
             return
         self.busy = f"Fast-forwarding {days} days ({plan})"
-        self.narrate(f"Fast-forwarding {days} days with {plan if plan != 'ai' else 'the AI plan'}.")
+        # contract §7.4: Session.fast_forward takes a plan dict (None = standard rehab), not a name
+        if plan == "ai" and not self.plan:
+            await self._run_planner()
+            self.busy = f"Fast-forwarding {days} days ({plan})"
+        plan_name = plan
+        plan = {"standard": None, "none": {"target": None, "sessions_per_day": 0},
+                "ai": self.plan}.get(plan, plan) if isinstance(plan, str) else plan
+        self.narrate(f"Fast-forwarding {days} days with {({'ai': 'the AI plan', 'standard': 'normal rehab', 'none': 'no rehab'}).get(plan_name, plan_name)}.")
         done = 0
         while done < days:
             n = min(3, days - done)
             results = await asyncio.to_thread(self.session.fast_forward, n, plan)
             for dr in results or []:
                 self._finalize_day(dr.day, dr.arm_function, attempts=dr.attempts, effort=dr.mean_effort,
-                                   stims=dr.stim_count, planned_good=(plan == "ai"))
+                                   stims=dr.stim_count, planned_good=(plan_name == "ai"))
             done += n
             await asyncio.sleep(0.06)
         self.last_day = self.session.state()["day"]
         self.busy = None
         arm = self.session.state()["arm_function"]
-        self.event("fast_forward_done", {"days": days, "plan": plan, "arm_function": arm})
+        self.event("fast_forward_done", {"days": days, "plan": plan_name, "arm_function": arm})
         self.narrate(f"Day {self.last_day}: arm function is {arm:.0%}.")
 
     async def _run_planner(self):

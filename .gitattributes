@@ -1,0 +1,4 @@
+# Trained model files must keep exact bytes (LightGBM fails on CRLF line endings on Windows)
+ai/models/** -text
+*.npz binary
+*.parquet binary
