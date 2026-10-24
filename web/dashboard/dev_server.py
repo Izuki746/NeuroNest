@@ -378,8 +378,8 @@ class Hub:
         act = self.current_activity()
         prev = getattr(self, "_led_act", None)
         self._led_act = act if prev is None else prev + 0.35 * (act - prev)
-        rest = 0.07
-        return 0.22 * health + 1.4 * np.clip(self._led_act - rest, 0.0, None)
+        rest = 0.12          # above the whole-brain background bump on each squeeze: only real pathway activity shows
+        return 0.22 * health + 1.6 * np.clip(self._led_act - rest, 0.0, None)
 
     def device(self) -> dict:
         t = now_ms()
