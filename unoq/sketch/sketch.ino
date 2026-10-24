@@ -142,6 +142,11 @@ void writeServo(float angle) {
 #endif
 }
 
+// Software pulses jitter on this core, so the servo is only driven while moving
+// (+ a short settle time) and left unpowered-signal at rest: no buzzing when idle.
+unsigned long lastMoveMs = 0;
+const unsigned long SETTLE_MS = 400;
+
 void updateServo(int target) {
   unsigned long now = millis();
   if (now - lastServoMs >= 20) {            // max 3 deg per 20 ms -> smooth movement
@@ -149,9 +154,21 @@ void updateServo(int target) {
     float diff = target - servoPos;
     if (diff > 3) diff = 3;
     if (diff < -3) diff = -3;
+    if (diff != 0) lastMoveMs = now;
     servoPos += diff;
   }
-  writeServo(servoPos);
+  if (now - lastMoveMs < SETTLE_MS) {
+#if HAVE_SERVO_LIB
+    if (!arm.attached()) arm.attach(SERVO_PIN);
+#endif
+    writeServo(servoPos);
+  } else {
+#if HAVE_SERVO_LIB
+    if (arm.attached()) arm.detach();
+#else
+    digitalWrite(SERVO_PIN, LOW);
+#endif
+  }
 }
 
 // ---------- Offline demo (no network) ----------
