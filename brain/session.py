@@ -27,8 +27,13 @@ log = logging.getLogger(__name__)
 STIM_WINDOW_MS = 400.0        # stims from onset-400 to onset+400 count for an attempt
 ATTEMPTS_PER_DAY = 20         # auto end_day after this many live attempts
 MEASURE_EVERY = 5             # recompute the cheap arm_function every N live attempts
-REP_ATTEMPTS = 3              # representative attempts per simulated day in fast_forward
-TWIN_EVERY_DAYS = 5           # twins update cadence during fast_forward
+# representative attempts per simulated day in fast_forward. 1 gives the same day-90 outcomes as 3
+# (card B standard: 0.71 both) at ~3x the speed (B, 2026-10-25, DECISIONS.md).
+REP_ATTEMPTS = 1
+TWIN_EVERY_DAYS = 10          # twins update cadence during fast_forward (each update ~1 s)
+# twins simulate every particle through every day, so their cost dominates fast_forward; 40 keeps the
+# forecast band usable while making a 90-day skip several times faster than 150 (B, DECISIONS.md)
+TWIN_PARTICLES = 40
 MAX_STIM_BUFFER = 200
 
 STANDARD_PLAN = {"target": None, "sessions_per_day": 1,
@@ -92,7 +97,7 @@ class Session:
         try:
             from ai.twins import TwinFilter
             twins = TwinFilter(
-                self.info(), n=150, seed=self.seed, model=self.model,
+                self.info(), n=TWIN_PARTICLES, seed=self.seed, model=self.model,
                 W_pre=self.pt.W_pre)
             twins.update(DayResult(
                 day=0, arm_function=self._arm_fn, mean_effort=0.0,

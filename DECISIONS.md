@@ -18,3 +18,5 @@ One line each: `time (UTC) · initials · decision / assumption`.
 - 2026-10-24 · B · .gitattributes: ai/models/** kept byte-exact (Windows CRLF conversion corrupted LightGBM models).
 - 2026-10-24 · B · Gemini model default gemini-3.8-flash (2.5-flash retired for new keys); report_gen falls back across models.
 - 2026-10-24 · B · dev_server resolves fast_forward plan names (ai/standard/none) to plan dicts per contract §7.4 before calling Session.
+- 2026-10-25 · B (for A) · fast_forward REP_ATTEMPTS 3→1 (same day-90 results), TWIN_EVERY_DAYS 5→10, twins 150→40 particles: 90-day skip ~85 s → ~34 s. 46/46 tests pass.
+- 2026-10-25 · B (for A) · planner cache moved from ai/models/plans_*.json (tracked) to ai/cache/ (git-ignored) so running the planner no longer modifies tracked files.

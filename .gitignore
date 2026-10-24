@@ -10,3 +10,4 @@ storage/offline/
 ai/data/
 *.zip
 *.log
+ai/cache/

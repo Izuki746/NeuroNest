@@ -157,8 +157,12 @@ def _extend_curve(days: list[int], simulated: np.ndarray,
     }
 
 
+CACHE_DIR = Path(__file__).resolve().parent / "cache"   # git-ignored: runtime cache, not a tracked model file
+
+
 def _cached_plan_path(card: str, model_dir: Path) -> Path:
-    return model_dir / f"plans_{card}.json"
+    # Written at runtime, so keep it out of ai/models/ (tracked in git); model_dir kept for API compatibility.
+    return CACHE_DIR / f"plans_{card}.json"
 
 
 def _read_demo_cache(card: str, info: dict, state: dict) -> dict | None:
