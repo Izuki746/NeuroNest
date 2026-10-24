@@ -79,7 +79,7 @@ class Hub:
     def __init__(self, card: str = "B"):
         self.clients: set[WebSocket] = set()
         self.inputs: set[WebSocket] = set()
-        self.auto = True
+        self.auto = False          # nothing happens until someone squeezes (turn on in ⚙ Demo → Auto squeeze)
         self.auto_treat = True
         self.mode = "human"
         self.new_patient(card)
