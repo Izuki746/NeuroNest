@@ -80,7 +80,9 @@ class TwinFilter:
         self._overcomp = np.asarray(
             [particle["overcomp"] for particle in self.traits], dtype=np.float64)
         # Coarser twin-only steps keep three replay attempts under the 2 s budget.
-        twin_engine = BatchEngine(self.model, dt_ms=10.0)
+        # 4 ms steps: 10 ms (= the rate time constant) made high-overcompensation twins collapse to ~4% while the
+        # true patient recovers to ~45% (card A), so the planner rejected stimulation. (B, DECISIONS.md)
+        twin_engine = BatchEngine(self.model, dt_ms=4.0)
         self.cohort = BatchCohort.particles(
             self.model, known_state, self.traits, engine=twin_engine)
         self.log_weights = np.full(self.n, -np.log(self.n), dtype=np.float64)

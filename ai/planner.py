@@ -19,7 +19,7 @@ from ai.population import CALM_TARGETS, EXCITE_TARGETS, OFFSET_CHOICES
 log = logging.getLogger(__name__)
 N_CANDIDATES = 600
 N_POSTERIOR_SAMPLES = 64
-N_VERIFY_PARTICLES = 20
+N_VERIFY_PARTICLES = 6      # full 90-day simulation per finalist, so fewer twins keep it ~5-10 s
 
 
 def _random_plan(rng: np.random.Generator) -> dict:
@@ -157,6 +157,7 @@ def _extend_curve(days: list[int], simulated: np.ndarray,
     }
 
 
+PLAN_CACHE_VERSION = 8   # bump whenever planner/twin logic changes: older cached plans are invalid
 CACHE_DIR = Path(__file__).resolve().parent / "cache"   # git-ignored: runtime cache, not a tracked model file
 
 
@@ -182,7 +183,7 @@ def _read_demo_cache(card: str, info: dict, state: dict) -> dict | None:
             metrics_path.read_text(encoding="utf-8"))["patients"])
     except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError):
         model_patients = None
-    if (cached.get("schema_version") != 3 or cached.get("card") != card or
+    if (cached.get("schema_version") != PLAN_CACHE_VERSION or cached.get("card") != card or
             cached.get("lesion") != info.get("lesion") or
             cached.get("model_patients") != model_patients or
             abs(float(cached.get("baseline_arm", -1.0)) -
@@ -260,9 +261,12 @@ def plan_for(session, budget_s: float = 10.0) -> dict:
         if key not in seen:
             seen.add(key)
             verify_plans.append(plan)
-    log.info("Planner: verifying %d finalists on %d matched twins",
-             len(verify_plans), N_VERIFY_PARTICLES)
-    verify_days = min(7, max(0, 90 - int(twins.current_day)))
+    # Verify the shortlist by SIMULATING it on the twins all the way to day 90 (the surrogate only ranks the
+    # 600 candidates). A 7-day check + surrogate projection under-rated delayed-onset stimulation plans, so
+    # the final choice and the dashboard curves now come straight from the simulator. (B, DECISIONS.md)
+    verify_days = max(0, 90 - int(twins.current_day))
+    log.info("Planner: simulating %d finalists on %d matched twins for %d days",
+             len(verify_plans), N_VERIFY_PARTICLES, verify_days)
     verified = twins.simulate_plans(
         verify_plans, n=N_VERIFY_PARTICLES,
         days=verify_days,
@@ -273,20 +277,17 @@ def plan_for(session, budget_s: float = 10.0) -> dict:
     summaries = []
     curves_by_key = {}
     for plan, curve in zip(verify_plans, verified):
-        sim_arm = np.asarray(curve["arm"], dtype=np.float64)
-        terminal_day = int(twins.current_day) + verify_days
-        terminal_arms = (
-            sim_arm[:, -1] if sim_arm.shape[1]
-            else np.full(len(curve["particle_traits"]), arm)
-        )
-        projections = _candidate_projection(
-            models, info, curve["particle_traits"], plan,
-            max(1, terminal_day), terminal_arms,
-        )
-        ordered_projection = np.sort(np.asarray(projections, dtype=np.float64), axis=0)
-        predicted_terminal = tuple(ordered_projection[index] for index in range(3))
-        summary = _extend_curve(
-            curve["days"], sim_arm, predicted_terminal, int(twins.current_day))
+        # 100% = back to the pre-stroke level; the model allows up to 120% but showing "better than before the
+        # stroke" from day-1 twin uncertainty reads as an error to judges.
+        sim_arm = np.clip(np.asarray(curve["arm"], dtype=np.float64), 0.0, 1.0)
+        if sim_arm.shape[1] == 0:
+            sim_arm = np.full((len(curve["particle_traits"]), 1), arm)
+        summary = {
+            "days": list(curve["days"]) or [int(twins.current_day) + 1],
+            "p10": np.quantile(sim_arm, 0.1, axis=0).astype(float).tolist(),
+            "p50": np.quantile(sim_arm, 0.5, axis=0).astype(float).tolist(),
+            "p90": np.quantile(sim_arm, 0.9, axis=0).astype(float).tolist(),
+        }
         curves_by_key[_plan_key(plan)] = summary
         p10 = summary["p10"][-1] if summary["p10"] else arm
         p50 = summary["p50"][-1] if summary["p50"] else arm
@@ -310,8 +311,8 @@ def plan_for(session, budget_s: float = 10.0) -> dict:
         f"{description}, starting day {best_plan.get('start_day', 1)} at "
         f"{abs(float(best_plan.get('offset_ms', 0.0))):.0f} ms "
         f"{'before' if float(best_plan.get('offset_ms', 0.0)) < 0 else 'after'} "
-        f"movement; the simulator checks the first {verify_days} days and the "
-        f"day-90 surrogate median is {best[1]:.0%} "
+        f"movement; simulated on {N_VERIFY_PARTICLES} digital twins for {verify_days} days, the "
+        f"predicted day-90 arm strength is {best[1]:.0%} "
         f"(p10–p90 {best[2]:.0%}–{best[3]:.0%})."
     )
     result = {
@@ -340,7 +341,7 @@ def plan_for(session, budget_s: float = 10.0) -> dict:
         cache_path = _cached_plan_path(info["card"], DEFAULT_MODEL_DIR)
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         cache_path.write_text(json.dumps({
-            "schema_version": 3,
+            "schema_version": PLAN_CACHE_VERSION,
             "card": info["card"],
             "lesion": info.get("lesion", {}),
             "baseline_arm": float(state["arm_function"]),

@@ -263,9 +263,16 @@ class BatchCohort:
         def rep(a): return np.repeat(np.asarray(a)[None], n, axis=0)  # noqa: E731
         full = {k: [tr.get(k, 0.8 if k == "adherence" else 0.7)
                     for tr in traits_list] for k in TRAIT_KEYS}
+        # Each particle's arm is normalised by ITS OWN pre-stroke peak, computed with its own overcompensation
+        # (exactly as brain.patients.build_patient does). A single shared M_base made high-overcomp patients
+        # (card A: true M_base 0.115 vs shared 1.13) read ~10x too weak, so their twins looked collapsed and
+        # the planner rejected stimulation. (B, 2026-10-25, DECISIONS.md)
+        k_all, b_all = np.stack(ks), np.stack(bs)
+        pre = engine.run(rep(patient.W_pre), np.ones((n, 76)), k_all, b_all, np.ones(n))
+        M_base = np.maximum(pre.peak_M, 1e-6)
         return cls(model, engine, W=rep(patient.W_start), W_pre=rep(patient.W_pre), health=rep(patient.health0),
-                   health0=rep(patient.health0), health_max=rep(patient.health_max), k_ih=np.stack(ks),
-                   b=np.stack(bs), M_base=np.full(n, patient.M_base), traits=full)
+                   health0=rep(patient.health0), health_max=rep(patient.health_max), k_ih=k_all,
+                   b=b_all, M_base=M_base, traits=full)
 
     # ---- measurement
     def arm_function(self, r_rest=None):

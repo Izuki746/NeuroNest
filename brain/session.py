@@ -33,7 +33,7 @@ REP_ATTEMPTS = 1
 TWIN_EVERY_DAYS = 10          # twins update cadence during fast_forward (each update ~1 s)
 # twins simulate every particle through every day, so their cost dominates fast_forward; 40 keeps the
 # forecast band usable while making a 90-day skip several times faster than 150 (B, DECISIONS.md)
-TWIN_PARTICLES = 40
+TWIN_PARTICLES = 24
 MAX_STIM_BUFFER = 200
 
 STANDARD_PLAN = {"target": None, "sessions_per_day": 1,
