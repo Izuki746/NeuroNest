@@ -267,7 +267,12 @@ void setup() {
 
   Wire.begin();
 #if HAVE_LCD
+  delay(200);                              // LCD needs time after power-up before init
   lcd.begin(16, 2);
+  delay(50);
+  lcd.setRGB(40, 80, 255);
+  lcd.setCursor(0, 0); lcd.print("NEURONEST       ");
+  lcd.setCursor(0, 1); lcd.print("CONNECTING...   ");
 #else
   Monitor.println("rgb_lcd library not found: LCD disabled (install 'Grove - LCD RGB Backlight')");
 #endif
