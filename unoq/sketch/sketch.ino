@@ -217,7 +217,7 @@ void runOffline() {
   lcdLine2 = "RECONNECTING...";
   lcdR = 255; lcdG = 160; lcdB = 0;
   updateLcd();
-  servoTarget = 0;
+  // keep the arm exactly where it was: with no laptop link the board must never move it on its own
   bool on = ((millis() / 1000) % 2) == 0;      // 0.5 Hz amber status LED
   applyRgb(on ? "000110" : "000000");
 }
