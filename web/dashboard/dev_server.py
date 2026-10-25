@@ -87,6 +87,7 @@ class Hub:
     # ---------- patient ----------
     def new_patient(self, card: str):
         self.session = Session(card=card, seed=random.randint(0, 99999))
+        self._snap = None
         info = self.session.info()
         self.info = info
         self.names = info["regions"]
@@ -104,7 +105,7 @@ class Hub:
         self.narration = None
         self.edges, self.edges_sent = [], 0.0
         self.last_auto = now_ms()
-        self.last_day = self.session.state()["day"]
+        self.last_day = self.snapshot()["day"]
         self.intro_until = now_ms() + 4000
         self.busy = None
         self.device_seq, self.device_last = 0, None
@@ -117,6 +118,23 @@ class Hub:
                                "regions": self.names, "centres": info["centres"]})
         self.narrate(f"Patient {card}: {info['age']} years old, stroke in the left motor cortex. "
                      f"Their right arm is weak.")
+
+    # ---------- non-blocking brain snapshot ----------
+    def snapshot(self) -> dict:
+        """Session.state() without ever blocking the event loop: while the brain is busy in a worker
+        thread (planner, fast-forward, an attempt) it holds its lock, so return the last snapshot
+        instead of waiting. This keeps /api/device and the 20 Hz dashboard feed responsive."""
+        lock = getattr(self.session, "_lock", None)
+        if lock is None:
+            return self.session.state()
+        if lock.acquire(blocking=False):
+            try:
+                self._snap = self.session.state()
+            finally:
+                lock.release()
+        elif getattr(self, "_snap", None) is None:
+            self._snap = self.session.state()     # first call ever: nothing cached yet, wait once
+        return self._snap
 
     # ---------- per-day record (progress report) ----------
     def _new_acc(self):
@@ -146,7 +164,7 @@ class Hub:
 
     def report_days(self) -> list[dict]:
         days = [self.days_log[d] for d in sorted(self.days_log)]
-        st = self.session.state()
+        st = self.snapshot()
         if self.acc["attempts"] or self.acc["seizures"]:          # today, in progress
             a = self.acc
             days.append({"day": st["day"], "arm": round(float(st["arm_function"]), 4), "attempts": a["attempts"],
@@ -217,7 +235,7 @@ class Hub:
                                "day": res.day, "attempts_today": res.attempts_today})
         self._check_fatigue()
         self._record_attempt(res)
-        st_day = self.session.state()["day"]
+        st_day = self.snapshot()["day"]
         if st_day != self.last_day:
             self._finalize_day(self.last_day, res.arm_function)
             self.event("day_end", {"day": self.last_day, "arm_function": round(res.arm_function, 3)})
@@ -243,7 +261,7 @@ class Hub:
             dr = await asyncio.to_thread(self.session.end_day)
             self._finalize_day(dr.day, dr.arm_function)
             self.event("day_end", {"day": dr.day, "arm_function": round(dr.arm_function, 3)})
-            self.last_day = self.session.state()["day"]
+            self.last_day = self.snapshot()["day"]
         elif a == "fast_forward":
             asyncio.get_running_loop().create_task(self._fast_forward(int(msg.get("days", 90)), msg.get("plan", "standard")))
         elif a == "run_planner":
@@ -267,7 +285,7 @@ class Hub:
     async def _fast_forward(self, days: int, plan):
         if self.busy:
             return
-        day_now = self.session.state()["day"]
+        day_now = self.snapshot()["day"]
         days = min(days, 91 - day_now)          # the story is the first 3 months; don't run past day 90
         if days <= 0:
             self.narrate("This patient is already 3 months in. Pick patient A or B to start again.")
@@ -284,16 +302,16 @@ class Hub:
         self.narrate(f"Fast-forwarding {days} days with {({'ai': 'the AI plan', 'standard': 'normal rehab', 'none': 'no rehab'}).get(plan_name, plan_name)}.")
         done = 0
         while done < days:
-            n = min(3, days - done)
+            n = min(1, days - done)
             results = await asyncio.to_thread(self.session.fast_forward, n, plan)
             for dr in results or []:
                 self._finalize_day(dr.day, dr.arm_function, attempts=dr.attempts, effort=dr.mean_effort,
                                    stims=dr.stim_count, planned_good=(plan_name == "ai"))
             done += n
             await asyncio.sleep(0.06)
-        self.last_day = self.session.state()["day"]
+        self.last_day = self.snapshot()["day"]
         self.busy = None
-        arm = self.session.state()["arm_function"]
+        arm = self.snapshot()["arm_function"]
         self.event("fast_forward_done", {"days": days, "plan": plan_name, "arm_function": arm})
         self.narrate(f"Day {self.last_day}: arm function is {arm:.0%}.")
 
@@ -310,7 +328,7 @@ class Hub:
     def start_seizure(self):
         if self.seizure:
             return
-        health = np.asarray(self.session.state()["health"])
+        health = np.asarray(self.snapshot()["health"])
         lesioned = [i for i, h in enumerate(health) if h < 0.95]
         cand = [i for i, n in enumerate(self.names) if n.startswith("l") and i not in lesioned]
         # post-stroke seizures start next to the damage: close in space AND wired to the lesion
@@ -397,7 +415,7 @@ class Hub:
 
     def state(self) -> dict:
         t = now_ms()
-        st = self.session.state()
+        st = self.snapshot()
         stim = None
         if self.stim_vis and t < self.stim_vis["until"]:
             stim = {k: self.stim_vis[k] for k in ("region", "kind", "actor")} | {"active": True}
@@ -449,7 +467,7 @@ class Hub:
     def device(self) -> dict:
         t = now_ms()
         self.device_seen = t
-        st = self.session.state()
+        st = self.snapshot()
         arm = float(st["arm_function"])
         stim_region = self.stim_vis["region"] if (self.stim_vis and t < self.stim_vis["until"]) else None
         health = np.asarray(st["health"], dtype=float)

@@ -14,7 +14,7 @@ from arduino.app_utils import App, Bridge
 
 SERVER = "http://192.168.137.1:8000"  # demo laptop on its Windows Mobile Hotspot (change if the laptop IP differs)
 POLL_S = 0.1
-FAILS_BEFORE_DEMO = 3
+FAILS_BEFORE_DEMO = 8          # ~8+ s of no replies before showing 'NO LAPTOP LINK' (WiFi hiccups are normal)
 
 last_seq = None
 fails = 0
@@ -49,7 +49,7 @@ def set_demo(on):
 def fetch_device():
     global latency_ms
     t0 = time.monotonic()
-    with urllib.request.urlopen(SERVER + "/api/device", timeout=0.5) as r:
+    with urllib.request.urlopen(SERVER + "/api/device", timeout=1.5) as r:
         data = json.loads(r.read().decode("utf-8"))
     latency_ms = (time.monotonic() - t0) * 1000
     return data
@@ -103,7 +103,7 @@ def loop():
             print(f"server unreachable ({e}); switching to offline demo")
         if fails >= FAILS_BEFORE_DEMO:
             set_demo(True)
-            time.sleep(2)          # retry slowly while offline
+            time.sleep(1)          # retry every second while offline
             return
 
     now = time.monotonic()
