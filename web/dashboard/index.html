@@ -53,7 +53,8 @@
           </div>
         </div>
 
-        <div class="hud" title="Last squeeze">
+        <button class="story-pill" id="storyPill" title="Show the latest update"><i></i>Latest update</button>
+        <div class="hud" id="hud" title="Last squeeze">
           <div class="hud-effort">
             <svg viewBox="0 0 120 70"><path d="M10 64 A50 50 0 0 1 110 64" class="g-bg"/><path id="effortArc" d="M10 64 A50 50 0 0 1 110 64" class="g-fg"/></svg>
             <div class="g-val"><span id="effortPct" class="mono">—</span><small>effort</small></div>
@@ -76,7 +77,8 @@
           <button class="btn excite" data-stim="excite">Excite</button>
           <button class="btn calm" data-stim="calm">Calm</button>
         </div>
-        <div class="story" id="story">
+        <div class="story show" id="story">
+          <button class="story-x" id="storyClose" title="Hide">×</button>
           <span class="story-k" id="storyK">WHAT'S HAPPENING</span>
           <span id="storyText">Squeeze your hand at the camera (or press Space) to make the patient try to move their right arm.</span>
         </div>

@@ -171,6 +171,9 @@ function onEvent(m) {
     case 'stim': lastStim = { ...d, t: performance.now() }; break;
     case 'attempt': {
       arm = { peak: Math.min(90, (d.arm_output || 0) * 90), t0: performance.now() };
+      $('hud').classList.add('live');                                  // effort/timing panel: bright after a squeeze,
+      clearTimeout(onEvent.hudTimer);                                  // fades back when idle so the brain stays the focus
+      onEvent.hudTimer = setTimeout(() => $('hud').classList.remove('live'), 9000);
       const pct = Math.round((d.arm_output || 0) * 100);
       const through = (d.arm_output || 0) < 0.45 ? 'The stroke blocked most of it' : (d.arm_output || 0) < 0.7 ? 'More of it is getting through now' : 'Most of it gets through now: the brain has rewired';
       const stimTxt = { good: ' The stimulation was <b>perfectly timed</b>, so the brain rewires faster (white lines).',
@@ -218,14 +221,36 @@ function addLog(kind, html, day) {
 }
 
 // ---------- "What's happening" caption ----------
-let storyHoldUntil = 0;
+// The caption appears, stays for a few seconds, then fades into a small "Latest update" pill.
+// × hides it; clicking the pill brings the last message back. A dismissed message type
+// (e.g. an ongoing SEIZURE) isn't forced back on screen until something new happens.
+let storyHoldUntil = 0, storyHideTimer = 0, storyLast = '', dismissedLabel = '';
+function showStory(on) {
+  $('story').classList.toggle('show', on);
+  $('storyPill').classList.toggle('show', !on && !!storyLast);
+}
 function setStory(text, tone = '', label = "WHAT'S HAPPENING", holdMs = 6000, force = false) {
   if (!force && performance.now() < storyHoldUntil) return;
+  if (force && label === dismissedLabel && text === storyLast) return;
+  const isNew = text !== storyLast;
+  if (label !== dismissedLabel) dismissedLabel = '';
   $('story').dataset.tone = tone;
+  $('storyPill').dataset.tone = tone;
   $('storyK').textContent = label;
   $('storyText').innerHTML = text;
+  storyLast = text;
   storyHoldUntil = performance.now() + holdMs;
+  if (isNew) {
+    showStory(true);
+    clearTimeout(storyHideTimer);
+    storyHideTimer = setTimeout(() => showStory(false), Math.max(6500, holdMs + 4000));
+  }
 }
+$('storyClose').addEventListener('click', () => { dismissedLabel = $('storyK').textContent; clearTimeout(storyHideTimer); showStory(false); });
+$('storyPill').addEventListener('click', () => {
+  dismissedLabel = ''; showStory(true);
+  clearTimeout(storyHideTimer); storyHideTimer = setTimeout(() => showStory(false), 8000);
+});
 function toast(text) { setStory(text, '', "WHAT'S HAPPENING", 2500); }
 
 function seizureStory(sz) {
@@ -279,3 +304,4 @@ document.addEventListener('keydown', (e) => {
   if (selected && e.key.toLowerCase() === 'b') stim(selected, 'excite');
   if (selected && e.key.toLowerCase() === 'y') stim(selected, 'calm');
 });
+

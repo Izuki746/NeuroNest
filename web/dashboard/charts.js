@@ -1,8 +1,8 @@
 // Recovery chart: observed arm function by day, the closing recovery window, the twins'
 // forecast cone, and treatment comparison curves (AI plan vs standard rehab vs no rehab).
 const COL = {
-  grid: 'rgba(140,170,220,0.10)', axis: 'rgba(170,190,230,0.55)', text: 'rgba(200,215,240,0.75)',
-  obs: '#ffffff', fc: '#38d9f5', ai: '#34d399', standard: '#f5a524', none: '#ff6b6b',
+  grid: 'rgba(190,160,255,0.08)', axis: 'rgba(170,190,230,0.55)', text: 'rgba(214,204,240,0.75)',
+  obs: '#ffffff', fc: '#a78bfa', ai: '#ff5fb4', standard: '#f7b955', none: '#ff6b81',
 };
 
 export function drawRecovery(canvas, s) {
@@ -20,9 +20,9 @@ export function drawRecovery(canvas, s) {
 
   // recovery window: strongest early, fading (TIME)
   const grad = g.createLinearGradient(X(0), 0, X(75), 0);
-  grad.addColorStop(0, 'rgba(52,211,153,0.16)'); grad.addColorStop(1, 'rgba(52,211,153,0)');
+  grad.addColorStop(0, 'rgba(167,139,250,0.16)'); grad.addColorStop(1, 'rgba(167,139,250,0)');
   g.fillStyle = grad; g.fillRect(X(0), T, X(75) - X(0), ph);
-  g.fillStyle = 'rgba(52,211,153,0.55)'; g.font = '11px ui-sans-serif, system-ui';
+  g.fillStyle = 'rgba(196,176,255,0.7)'; g.font = '11px ui-sans-serif, system-ui';
   g.fillText('recovery window closing →', X(1.5), T + 12);
 
   // grid + axes
