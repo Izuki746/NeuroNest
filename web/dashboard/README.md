@@ -7,6 +7,9 @@ effort gauge and stimulation timing, day-90 forecast (digital twins), recovery c
 closing recovery window, and AI plan vs standard vs no-rehab comparison plus a treatment log.
 
 ## Run it (production)
+**Everything at once:** double-click **`run_all.bat`** in the repo root (`run_all.bat B` for patient B, `run_all.bat A 1` for camera 1). It starts the server in its own window, waits until it's ready, opens the dashboard, and starts the webcam tracker. Stop: close the *NeuroNest server* window and press **Q** in the webcam window.
+
+Or step by step:
 ```
 python web/dashboard/dev_server.py --card A      # or B
 ```

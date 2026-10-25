@@ -2,3 +2,4 @@
 ai/models/** -text
 *.npz binary
 *.parquet binary
+*.bat text eol=crlf
