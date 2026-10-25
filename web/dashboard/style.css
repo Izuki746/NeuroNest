@@ -78,7 +78,7 @@ h3 { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: v
 .ring { width: 9px; height: 9px; border-radius: 50%; display: inline-block; border: 2px solid; }
 .ring.ex { border-color: var(--excite); } .ring.ca { border-color: var(--calm); }
 .bar { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
-.bar.gr { background: var(--ok); } .bar.ob { background: #fff; } .bar.fc { background: var(--mid); }
+.bar.gr { background: #fff; box-shadow: 0 0 6px rgba(255,255,255,.6); } .bar.ob { background: #fff; } .bar.fc { background: var(--mid); }
 .bar.ai { background: var(--ok); } .bar.st { background: var(--amber); } .bar.no { background: var(--bad); }
 
 /* brain stage */

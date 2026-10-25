@@ -173,7 +173,7 @@ function onEvent(m) {
       arm = { peak: Math.min(90, (d.arm_output || 0) * 90), t0: performance.now() };
       const pct = Math.round((d.arm_output || 0) * 100);
       const through = (d.arm_output || 0) < 0.45 ? 'The stroke blocked most of it' : (d.arm_output || 0) < 0.7 ? 'More of it is getting through now' : 'Most of it gets through now: the brain has rewired';
-      const stimTxt = { good: ' The stimulation was <b>perfectly timed</b>, so the brain rewires faster (green lines).',
+      const stimTxt = { good: ' The stimulation was <b>perfectly timed</b>, so the brain rewires faster (white lines).',
         early: ` The stimulation came <b>${Math.abs(Math.round(d.offset_ms || 0))} ms too early</b>, so it helped less.`,
         late: ` The stimulation came <b>${Math.abs(Math.round(d.offset_ms || 0))} ms too late</b>, so it helped less.`,
         wrong_region: ' The stimulated region isn\'t part of the movement pathway, so it didn\'t help.' }[d.verdict] || '';

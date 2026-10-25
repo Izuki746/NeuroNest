@@ -9,7 +9,7 @@ const C = {
   low: new THREE.Color('#123a5a'), mid: new THREE.Color('#38d9f5'), high: new THREE.Color('#ffffff'),
   lesion: new THREE.Color('#3a3f4b'), seizure: new THREE.Color('#ff3b5c'),
   excite: new THREE.Color('#4d8dff'), calm: new THREE.Color('#ffd23f'),
-  grow: new THREE.Color('#34d399'), weaken: new THREE.Color('#ff6b6b'), shell: new THREE.Color('#2d5b8f'),
+  grow: new THREE.Color('#ffffff'), weaken: new THREE.Color('#ff6b6b'), shell: new THREE.Color('#2d5b8f'),
 };
 
 function glowTexture() {
@@ -92,7 +92,7 @@ export class Brain3D {
   _buildShells(pts, names) {
     const all = new THREE.Box3().setFromPoints(pts);
     const size = all.getSize(new THREE.Vector3()), ctr = all.getCenter(new THREE.Vector3());
-    const shellMat = (opacity, color = '#4fa8ff') => new THREE.ShaderMaterial({
+    const shellMat = (opacity, color = '#ff5fb4') => new THREE.ShaderMaterial({
       uniforms: { uColor: { value: new THREE.Color(color) }, uOpacity: { value: opacity } },
       vertexShader: `varying vec3 vN; varying vec3 vV;
         void main() { vec4 mv = modelViewMatrix * vec4(position, 1.0);
@@ -139,11 +139,11 @@ export class Brain3D {
       cp.setXYZ(i, ctr.x + X * f, cy + Y * f, cz + Z * f);
     }
     cere.computeVertexNormals();
-    this.root.add(new THREE.Mesh(cere, shellMat(0.28, '#6f8dff')));
+    this.root.add(new THREE.Mesh(cere, shellMat(0.28, '#d65fe0')));
     const stem = new THREE.CylinderGeometry(5.5, 4, 26, 32, 1, true);
     stem.rotateX(0.25);
     stem.translate(ctr.x, ctr.y - size.y / 2 - 14, ctr.z + size.z / 2 - 22);
-    this.root.add(new THREE.Mesh(stem, shellMat(0.24, '#6f8dff')));
+    this.root.add(new THREE.Mesh(stem, shellMat(0.24, '#d65fe0')));
   }
 
   _buildStructure(edges) {
