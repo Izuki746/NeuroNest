@@ -29,6 +29,21 @@ function connect() {
 }
 connect();
 
+// Tiger Data counter: rows stored in the database (server caches the counts, refreshed every ~10 s)
+const fmt = (n) => Number(n || 0).toLocaleString('en-GB');
+async function refreshDb() {
+  try {
+    const s = await (await fetch('/api/stats')).json();
+    const online = !!s.tiger;
+    $('dbConn').classList.toggle('on', online);
+    $('dbText').textContent = online
+      ? `${fmt(s.brain_state_samples)} brain samples · ${fmt(s.total_attempts)} squeezes stored`
+      : 'offline · saving locally';
+  } catch { $('dbConn').classList.remove('on'); $('dbText').textContent = '—'; }
+}
+refreshDb();
+setInterval(refreshDb, 10000);
+
 function control(action, extra = {}) {
   fetch('/api/control', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'control', action, ...extra }) })
     .catch(() => toast('Server not reachable'));

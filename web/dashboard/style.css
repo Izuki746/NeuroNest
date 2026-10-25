@@ -54,6 +54,8 @@ h3 { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: va
 .pill { display: flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); font-size: 13px; }
 .pill.links { gap: 12px; color: var(--soft); font-size: 12px; }
 .pill.links span { display: inline-flex; align-items: center; gap: 6px; }
+.pill.db { gap: 7px; font-size: 12px; }
+.pill.db #dbText { color: var(--text); }
 .conn { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--bad); }
 .conn.on { background: var(--ok); }
 
