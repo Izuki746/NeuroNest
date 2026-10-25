@@ -315,10 +315,13 @@ document.addEventListener('keydown', (e) => { if (e.key === 'Escape') showHelp(f
 try { if (location.hash === '#help') showHelp(true); else if (location.hash !== '#nohelp' && !localStorage.getItem('nn_help_seen')) { showHelp(true); localStorage.setItem('nn_help_seen', '1'); } } catch { showHelp(true); }
 
 // ---------- arm animation (mirrors the servo: rise, hold 0.3 s, ease down over 0.8 s) ----------
+// The on-screen arm mirrors the real servo: it follows the server's servo angle (the exact value the
+// Uno Q gets), eased like the servo's smooth motion. That includes holding up during a 90-day skip.
+let armShown = 0;
 function animateArm() {
-  const dt = performance.now() - arm.t0;
-  const a = dt < 300 ? arm.peak : dt < 1100 ? arm.peak * (1 - (dt - 300) / 800) : 0;
-  $('forearm').style.transform = `rotate(${-a}deg)`;
+  const target = typeof S.servo === 'number' ? S.servo : 0;
+  armShown += (target - armShown) * 0.18;
+  $('forearm').style.transform = `rotate(${-armShown}deg)`;
   requestAnimationFrame(animateArm);
 }
 animateArm();

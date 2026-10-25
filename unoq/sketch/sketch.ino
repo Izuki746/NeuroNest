@@ -130,15 +130,19 @@ void updateLcd() {
 #endif
 }
 
+// The server sends 0..90 (arm down..fully lifted). Hobby servos (SG90) sweep ~180 deg over 500..2500 us,
+// so 0..90 is mapped onto ~0..150 deg of real travel: big, visible arm movement.
+const float SERVO_TRAVEL = 150.0f / 90.0f;
+
 void writeServo(float angle) {
 #if HAVE_SERVO_LIB
-  arm.write((int)angle);
+  arm.write((int)(angle * SERVO_TRAVEL));
 #else
-  // Software 50 Hz pulse: 1000 us = 0 deg, 2000 us = 180 deg
+  // Software 50 Hz pulse: 500 us = 0 deg ... 2500 us = 180 deg
   unsigned long now = millis();
   if (now - lastPulseMs >= 20) {
     lastPulseMs = now;
-    int us = 1000 + (int)(angle * 1000.0f / 180.0f);
+    int us = 500 + (int)(angle * SERVO_TRAVEL * 2000.0f / 180.0f);
     digitalWrite(SERVO_PIN, HIGH);
     delayMicroseconds(us);
     digitalWrite(SERVO_PIN, LOW);

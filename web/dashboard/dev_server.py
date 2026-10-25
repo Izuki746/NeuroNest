@@ -64,6 +64,12 @@ TICK_S = 0.05
 RESOLVE_MS = 400.0
 AUTO_EVERY_S = 3.5
 SEIZURE_PULSE_HZ = 1.2          # slow pulse: never above 3 Hz (photosensitivity)
+
+
+def servo_for(arm: float) -> int:
+    """Arm strength (0..1.2) -> servo angle 0..90. The 0.6 power spreads the low end so a weak arm still
+    visibly lifts (30% -> 44 deg, 50% -> 60, 70% -> 73, 100% -> 90) while staying monotonic."""
+    return int(round(90 * min(1.0, max(0.0, float(arm))) ** 0.6))
 AUDIO_DIR = ROOT / "server" / "audio_cache"
 AI_CUE_EVERY_S = 3.0
 SERVER_PORT = 8000                 # set from --port at startup; the webcam tracker connects back to it
@@ -330,6 +336,7 @@ class Hub:
         self.W = load_weights(self.names)
         self.frames, self.anim_start = None, 0.0
         self.servo_peak, self.servo_t = 0, -1e9
+        self.ff_hold = None                      # during skip-ahead the arm holds at the current recovery level
         self.stim_vis = None                     # {"region","kind","until","actor"}
         self.timing, self.timing_until = None, 0.0
         self.efforts: deque[float] = deque(maxlen=30)
@@ -505,7 +512,7 @@ class Hub:
             if cue is not None:
                 self.lags.append(t_onset - cue)
         self.frames, self.anim_start = np.asarray(res.frames, dtype=float), now_ms()
-        self.servo_peak, self.servo_t = round(90 * min(res.arm_output, 1.0)), now_ms()
+        self.servo_peak, self.servo_t = servo_for(res.arm_output), now_ms()
         self.last_effort = res.effort
         self.efforts.append(res.effort)
         if res.stim_offset_ms is not None:
@@ -638,6 +645,7 @@ class Hub:
                 for dr in results or []:
                     self._finalize_day(dr.day, dr.arm_function, attempts=dr.attempts, effort=dr.mean_effort,
                                        stims=dr.stim_count, planned_good=(plan_name == "ai"))
+                    self.ff_hold = servo_for(dr.arm_function)
                 done += n
                 await asyncio.sleep(0.06)
             if session is not self.session:
@@ -651,6 +659,7 @@ class Hub:
             log.exception("fast-forward failed")
             self.event("info", {"text": "Skipping ahead failed. Please try again."})
         finally:
+            self.ff_hold = None                     # arm lowers smoothly when the skip ends
             if session is self.session:
                 self.busy = None
 
@@ -802,6 +811,8 @@ class Hub:
         return msg
 
     def servo_angle(self) -> int:
+        if self.ff_hold is not None:              # skipping ahead: arm held up, rising as the patient recovers
+            return int(self.ff_hold)
         dt = now_ms() - self.servo_t
         if dt < 300:
             return int(self.servo_peak)
