@@ -11,4 +11,4 @@ python-dotenv
 psycopg[binary]
 google-genai
 elevenlabs
-qrcode
+qrcode[pil]
