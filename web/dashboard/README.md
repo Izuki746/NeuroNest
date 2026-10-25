@@ -6,17 +6,19 @@ the AI treatment target, seizure spread and treatment, right-arm function with a
 effort gauge and stimulation timing, day-90 forecast (digital twins), recovery curves with the
 closing recovery window, and AI plan vs standard vs no-rehab comparison plus a treatment log.
 
-## Run it now (before C's server exists)
+## Run it (production)
 ```
 python web/dashboard/dev_server.py --card A      # or B
 ```
-Open **http://localhost:8000/dashboard/** (big screen: F11 for fullscreen).
-The dev server runs Person A's brain (`brain.session.Session` if present, else `FakeSession`) and also
-serves `/api/device`, so the Uno Q keeps working against it.
+- Dashboard: **http://localhost:8000/dashboard/** (F11 for fullscreen) · Phones: **http://<laptop-ip>:8000/phone/** (QR code at **/qr**)
+- Webcam squeezes: `python inputs/hands.py --server ws://127.0.0.1:8000/ws/input --camera 0` (own venv, see requirements-hands.txt)
+- Keyboard backup: `python inputs/keyboard.py`
+- The Uno Q polls `/api/device` on the same server.
 
-## With C's real server
-C's server serves this folder at `/dashboard` and broadcasts `/ws/state` per SHARED_CONTEXT §7.5
-(including the dashboard additions listed there). No dashboard changes are needed.
+This is the **one server to run**. It runs Person A's brain and integrates Person C's modules, each optional and fail-soft:
+`server/narrator.py` (ElevenLabs voice coach clips, committed in `server/audio_cache/`, plus Gemini narration when `ELEVENLABS_API_KEY` + `ELEVENLABS_VOICE_ID` are set),
+`storage/tiger.py` (Tiger Data logging when `TIGER_DATABASE_URL` is set, CSV buffer in `storage/offline/` otherwise), and the hands / keyboard / phone clients over `/ws/input`.
+`server/app.py` is C's original standalone hub, kept for reference. Don't run both on port 8000.
 
 ## Controls
 - Footer: patient A/B/random · Squeeze (or **Space**) · End day · Mode Human/AI · Fast-forward 90 days (standard / AI plan / no rehab) · Run AI planner · demo toggles (auto rehab, simulate seizure, AI treats seizures)

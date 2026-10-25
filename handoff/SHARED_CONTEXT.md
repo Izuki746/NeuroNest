@@ -376,7 +376,7 @@ For **population** (simulated) patients, `time` = a synthetic timestamp: `2026-0
 ### 7.8 Run commands (Laptop 1)
 ```bash
 python -m venv .venv && .venv\Scripts\activate && pip install -r requirements.txt
-uvicorn server.app:app --host 0.0.0.0 --port 8000
+python web/dashboard/dev_server.py --card A      # PRODUCTION server (brain + dashboard + phone + Uno Q + C's narrator/storage)
 # separate terminal, separate venv allowed:
 python -m venv .venv-hands && .venv-hands\Scripts\activate && pip install -r requirements-hands.txt
 python inputs/hands.py --server ws://127.0.0.1:8000/ws/input --camera 0

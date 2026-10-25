@@ -1,37 +1,50 @@
-"""Dashboard dev server (Person B): runs Person A's brain and speaks the exact protocol of
-C's real server (handoff/SHARED_CONTEXT.md §7.5), so the dashboard (and the Uno Q) can be
-built and demoed before server/app.py exists. When C's server is ready, nothing in the
-dashboard changes: it just connects to C's server instead.
+"""NeuroNest production server: runs Person A's brain and drives the dashboard, phone page and Uno Q.
 
-    python web/dashboard/dev_server.py            → http://localhost:8000/dashboard/
-    python web/dashboard/dev_server.py --port 8001
+    python web/dashboard/dev_server.py --card A    → http://localhost:8000/dashboard/  (phones: /phone/)
 
-Provides: GET /dashboard/ (static) · WS /ws/state (20 Hz) · WS /ws/input · POST /api/control
-          GET /api/device (Uno Q) · GET /api/health
-Dev-only controls (C's server may ignore them): dev_auto (auto rehab attempts on/off),
-dev_seizure (simulated post-stroke seizure for the seizure display), dev_auto_treat.
+Speaks the contract in handoff/SHARED_CONTEXT.md §7.5. Integrates Person C's modules (all optional,
+each fails soft): server/narrator.py (ElevenLabs voice coach + Gemini narration), storage/tiger.py
+(Tiger Data logging, CSV buffer offline), and the inputs/hands.py, inputs/keyboard.py and web/phone
+clients over /ws/input.
+
+Provides: GET /dashboard/ /phone/ /audio/ (static) · WS /ws/state (20 Hz) · WS /ws/input
+          POST /api/control · GET /api/device (Uno Q) · /api/health · /api/report · /api/stats · /qr
+Demo controls: dev_attempt, dev_auto (auto squeezes), dev_seizure, dev_auto_treat; also calibrate, report.
 """
 from __future__ import annotations
 
 import argparse
 import asyncio
+import io
 import json
 import logging
 import math
+import os
 import random
+import socket
+import statistics
 import sys
+import threading
 import time
+import uuid
 from collections import deque
+from contextlib import asynccontextmanager
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import uvicorn
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+try:
+    from dotenv import load_dotenv
+    load_dotenv(ROOT / ".env")
+except Exception:
+    pass
 from brain.layout import led_string  # noqa: E402
 
 try:
@@ -50,6 +63,72 @@ TICK_S = 0.05
 RESOLVE_MS = 400.0
 AUTO_EVERY_S = 3.5
 SEIZURE_PULSE_HZ = 1.2          # slow pulse: never above 3 Hz (photosensitivity)
+AUDIO_DIR = ROOT / "server" / "audio_cache"
+AI_CUE_EVERY_S = 3.0
+
+
+class _NullNarrator:
+    """Used if server/narrator.py can't be imported: every call is a silent no-op."""
+    now_offset_ms = 900.0
+    el_key = ""
+    voice = ""
+
+    def pregenerate(self):
+        return None
+
+    def coach(self, key, force=False):
+        return None
+
+    def clip_url(self, key):
+        return None
+
+    def narrate(self, kind, data, force=False):
+        return None
+
+    def report(self, info):
+        return "# Report unavailable\n\nSimulation only; not medical advice."
+
+
+class _NullStorage:
+    """Used if storage/tiger.py can't be imported: every method is a no-op."""
+
+    def __getattr__(self, name):
+        return lambda *a, **k: None
+
+
+def load_narrator():
+    try:
+        from server.narrator import Narrator
+        return Narrator()
+    except Exception as e:  # noqa: BLE001
+        log.warning("voice/narration unavailable (%s)", e)
+        return _NullNarrator()
+
+
+def load_storage():
+    try:
+        from storage.tiger import TigerWriter
+        return TigerWriter(os.getenv("TIGER_DATABASE_URL") or None)
+    except Exception as e:  # noqa: BLE001
+        log.warning("Tiger Data logging unavailable (%s)", e)
+        return _NullStorage()
+
+
+class LedLimiter:
+    """Cap each LED's brightness changes at ~3 per second (photosensitivity safety)."""
+    MIN_MS = 333.0
+
+    def __init__(self) -> None:
+        self.cur = ["0"] * 104
+        self.t = [-1e12] * 104
+
+    def apply(self, target: str, t_ms: float) -> str:
+        if len(target) != 104:
+            return "".join(self.cur)
+        for i, ch in enumerate(target):
+            if ch != self.cur[i] and t_ms - self.t[i] >= self.MIN_MS:
+                self.cur[i], self.t[i] = ch, t_ms
+        return "".join(self.cur)
 
 
 def now_ms() -> float:
@@ -78,11 +157,114 @@ def load_weights(names: list[str]) -> np.ndarray:
 class Hub:
     def __init__(self, card: str = "B"):
         self.clients: set[WebSocket] = set()
-        self.inputs: set[WebSocket] = set()
+        self.input_clients: dict[WebSocket, dict] = {}   # hands / keyboard / phone, with kind + measured rtt
         self.auto = False          # nothing happens until someone squeezes (turn on in ⚙ Demo → Auto squeeze)
         self.auto_treat = True
         self.mode = "human"
+        self.narrator = load_narrator()
+        self.store = load_storage()
+        self.audio_q: asyncio.Queue = asyncio.Queue()
+        self.audio_until = 0.0
+        self.calibrating, self.calib_until = False, 0.0
+        self.counters = {"attempts": 0, "stims": 0}
+        self.leds = LedLimiter()
         self.new_patient(card)
+
+    # ---------- Person C integrations: storage, voice coach, narration ----------
+    def safe_store(self, method: str, *a, **k) -> None:
+        try:
+            getattr(self.store, method)(*a, **k)
+        except Exception as e:  # noqa: BLE001
+            log.warning("storage.%s failed: %s", method, e)
+
+    @staticmethod
+    def _clip_secs(url) -> float:
+        """Clip length from file size (mp3_44100_128 = 16000 bytes/s), so clips never overlap."""
+        try:
+            size = (AUDIO_DIR / Path(str(url)).name).stat().st_size
+            return min(30.0, max(0.8, size / 16000.0))
+        except Exception:  # noqa: BLE001
+            return 2.5
+
+    def audio_busy(self) -> bool:
+        return now_ms() < self.audio_until or not self.audio_q.empty()
+
+    def coach(self, key: str, force: bool = False) -> None:
+        """Queue a pre-recorded ElevenLabs coach clip (rate-limited inside the narrator)."""
+        try:
+            url = self.narrator.coach(key, force=force)
+        except Exception as e:  # noqa: BLE001
+            log.warning("coach(%s) failed: %s", key, e)
+            url = None
+        if url and self.audio_q.qsize() < 4:
+            self.audio_q.put_nowait(("clip", url))
+
+    async def voice(self, kind: str, data: dict, force: bool = False) -> None:
+        """Gemini-written, ElevenLabs-spoken narration line (only when TTS is configured)."""
+        if not (getattr(self.narrator, "el_key", "") and getattr(self.narrator, "voice", "")):
+            return
+        try:
+            n = await asyncio.to_thread(self.narrator.narrate, kind, data, force)
+        except Exception as e:  # noqa: BLE001
+            log.warning("narration failed: %s", e)
+            return
+        if n and n.get("audio_url") and self.audio_q.qsize() < 4:
+            self.audio_q.put_nowait(("narration", n))
+
+    def voice_soon(self, kind: str, data: dict, force: bool = False) -> None:
+        if self._loop_running():
+            asyncio.get_running_loop().create_task(self.voice(kind, data, force))
+
+    async def audio_worker(self) -> None:
+        """One clip at a time: `audio` messages for coach clips, state.narration for spoken narration."""
+        while True:
+            kind, item = await self.audio_q.get()
+            try:
+                if kind == "clip":
+                    dur = self._clip_secs(item)
+                    await self.broadcast({"type": "audio", "url": item})
+                else:
+                    dur = self._clip_secs(item.get("audio_url"))
+                    self.narration = {"text": item.get("text", ""), "audio_url": item.get("audio_url"), "t_ms": now_ms()}
+                self.audio_until = now_ms() + dur * 1000 + 250
+                await asyncio.sleep(dur + 0.25)
+            except Exception as e:  # noqa: BLE001
+                log.warning("audio worker error: %s", e)
+
+    async def send_inputs(self, msg: dict) -> None:
+        data = json.dumps(msg)
+        for ws in list(self.input_clients):
+            try:
+                await asyncio.wait_for(ws.send_text(data), timeout=0.5)
+            except Exception:  # noqa: BLE001
+                self.input_clients.pop(ws, None)
+
+    # ---------- AI mode: spoken "Squeeze... now!" cue, learned reaction lag, auto-timed stimulation ----------
+    async def ai_loop(self) -> None:
+        while True:
+            await asyncio.sleep(AI_CUE_EVERY_S)
+            try:
+                if (self.mode != "ai" or self.auto or self.busy or self.audio_busy()
+                        or not self.plan or not self.plan.get("target")):
+                    continue
+                send = now_ms()
+                cue_t = send + float(getattr(self.narrator, "now_offset_ms", 900.0))
+                self.cues.append(cue_t)
+                self.coach("squeeze_now", force=True)
+                lag = statistics.median(self.lags) if self.lags else 350.0
+                sigma = statistics.pstdev(self.lags) if len(self.lags) >= 3 else 100.0
+                p = self.plan
+                t_stim = max(cue_t + lag + float(p.get("offset_ms", -80)), send)
+                self.ai_info = {"predicted_onset_ms": round(cue_t + lag), "pm_ms": round(max(sigma, 20)),
+                                "lag_ms": round(lag), "cue_t_ms": round(cue_t)}
+                asyncio.get_running_loop().call_later(max(0.0, (t_stim - now_ms()) / 1000.0), self._ai_fire, dict(p), t_stim)
+            except Exception:  # noqa: BLE001
+                log.exception("ai loop failed")
+
+    def _ai_fire(self, plan: dict, t_stim: float) -> None:
+        if self.mode == "ai" and plan.get("target"):
+            self.submit_stim(t_stim, plan["target"], plan.get("kind", "excite"), actor="ai",
+                             intensity=float(plan.get("intensity", 1.0)))
 
     # ---------- patient ----------
     def new_patient(self, card: str):
@@ -114,10 +296,21 @@ class Hub:
         self.days_log: dict[int, dict] = {}                   # per-day record for the progress report
         self._new_acc()
         self.report_cache = None
+        self.fatigue_attempts, self.break_said = 0, False
+        self.cues: deque[float] = deque(maxlen=10)            # AI-mode cue times, to learn reaction lag
+        self.lags: deque[float] = deque(maxlen=5)
+        self.ai_info = None
+        self.leds = LedLimiter()                              # fresh LED limiter so the reset wipe isn't delayed
+        self.session_id = f"live-{uuid.uuid4().hex[:8]}"
+        self.safe_store("session", self.session_id, info["card"], info.get("age"), info.get("lesion"),
+                        getattr(getattr(self.session, "pt", None), "traits", None), "live")
         self.event("patient", {"card": card, "age": info["age"], "lesion": info["lesion"],
                                "regions": self.names, "centres": info["centres"]})
         self.narrate(f"Patient {card}: {info['age']} years old, stroke in the left motor cortex. "
                      f"Their right arm is weak.")
+        if card in ("A", "B"):
+            self.coach(f"patient_{card}", force=True)
+        self.voice_soon("patient", {"card": card, "age": info.get("age")})
 
     # ---------- non-blocking brain snapshot ----------
     def snapshot(self) -> dict:
@@ -151,6 +344,16 @@ class Hub:
             "late": 0 if planned_good else a["late"], "wrong": 0 if planned_good else a["wrong"],
             "seizures": a["seizures"], "plan": (self.plan or {}).get("target") if planned_good else None}
         self._new_acc()
+        d = self.days_log[int(day)]
+        self.safe_store("daily", self.session_id,
+                        SimpleNamespace(day=d["day"], arm_function=d["arm"], mean_effort=d["effort"],
+                                        attempts=d["attempts"], window_level=None, stim_count=d["stims"]),
+                        self.plan if planned_good else None)
+        fc = self.snapshot().get("forecast")
+        if fc:
+            self.safe_store("forecast", self.session_id, int(day), fc, "twins")
+        if int(day) % 5 == 0:
+            self.voice_soon("day_end", {"day": int(day), "arm": round(float(arm), 2)})
 
     def _record_attempt(self, res):
         a = self.acc
@@ -202,8 +405,13 @@ class Hub:
 
     # ---------- inputs ----------
     def submit_stim(self, t_ms: float, region: str, kind: str, actor: str = "human", intensity: float = 1.0):
+        if kind not in ("excite", "calm") or region not in self.idx:
+            log.warning("ignored stim region=%r kind=%r", region, kind)
+            return
         self.session.submit_stim(t_ms, region, kind, intensity, actor)
         self.stim_vis = {"region": region, "kind": kind, "actor": actor, "until": now_ms() + 600}
+        self.counters["stims"] += 1
+        self.safe_store("stim", self.session_id, self.last_day, actor, region, kind, intensity, None)
         # stopping a seizure: calming a seizing region (human or AI)
         sz = self.seizure
         if sz and sz["phase"] == "ictal" and kind == "calm" and region in sz["regions"] and not sz["treated"]:
@@ -218,7 +426,22 @@ class Hub:
     async def submit_attempt(self, t_onset: float, effort: float, depth: float, speed: float,
                              hold_ms: float, source: str):
         await asyncio.sleep(max(0.0, (t_onset + RESOLVE_MS - now_ms()) / 1000.0))
-        res = await asyncio.to_thread(self.session.submit_attempt, t_onset, effort, depth, speed, hold_ms)
+        session = self.session
+        try:
+            res = await asyncio.to_thread(session.submit_attempt, t_onset, effort, depth, speed, hold_ms)
+        except Exception:  # noqa: BLE001
+            log.exception("submit_attempt failed")
+            return
+        if session is not self.session:          # patient was reset/changed while this squeeze was resolving
+            return
+        self.counters["attempts"] += 1
+        self.safe_store("attempt_full", self.session_id, res.day, res.effort, depth, speed, hold_ms,
+                        res.arm_output, res.arm_function, res.stim_offset_ms, res.stim_verdict, res.gate, source)
+        self.safe_store("weights", self.session_id, res.day, res.weight_change, 1e-3)
+        if self.mode == "ai":                     # learn this visitor's reaction lag from the last spoken cue
+            cue = next((c for c in reversed(self.cues) if 0 < t_onset - c < 1500), None)
+            if cue is not None:
+                self.lags.append(t_onset - cue)
         self.frames, self.anim_start = np.asarray(res.frames, dtype=float), now_ms()
         self.servo_peak, self.servo_t = round(90 * min(res.arm_output, 1.0)), now_ms()
         self.last_effort = res.effort
@@ -233,7 +456,10 @@ class Hub:
                                "arm_function": round(res.arm_function, 3), "offset_ms": res.stim_offset_ms,
                                "verdict": res.stim_verdict, "gate": round(res.gate, 2), "source": source,
                                "day": res.day, "attempts_today": res.attempts_today})
-        self._check_fatigue()
+        fatigue_spoke = self._check_fatigue()
+        # voice coach on ~every 3rd stimulated attempt (not on top of a fatigue line)
+        if res.stim_verdict in ("good", "early", "late") and self.counters["attempts"] % 3 == 0 and not fatigue_spoke:
+            self.coach({"good": "good_timing"}.get(res.stim_verdict, res.stim_verdict))
         self._record_attempt(res)
         st_day = self.snapshot()["day"]
         if st_day != self.last_day:
@@ -241,16 +467,29 @@ class Hub:
             self.event("day_end", {"day": self.last_day, "arm_function": round(res.arm_function, 3)})
             self.last_day = st_day
 
-    def _check_fatigue(self):
+    def _check_fatigue(self) -> bool:
+        """Returns True if a fatigue voice line was queued."""
         e = list(self.efforts)
         if len(e) < 10:
-            return
+            return False
         start, rolling = float(np.mean(e[:5])), float(np.mean(e[-8:]))
         fat = rolling < 0.8 * start
+        spoke = False
         if fat and not self.fatigue:
+            self.fatigue_attempts, self.break_said = 0, False
             self.event("fatigue", {"rolling": rolling, "start": start})
             self.narrate("Effort is dropping. Two more, really squeeze!")
+            self.coach("fatigue_1", force=True)
+            self.voice_soon("fatigue", {"rolling": round(rolling, 2), "session_start": round(start, 2)})
+            spoke = True
+        elif fat:
+            self.fatigue_attempts += 1
+            if self.fatigue_attempts >= 8 and not self.break_said:      # still tired 8 squeezes later: suggest a break
+                self.break_said = True
+                self.coach("fatigue_2", force=True)
+                spoke = True
         self.fatigue = fat
+        return spoke
 
     # ---------- controls ----------
     async def control(self, msg: dict):
@@ -281,6 +520,25 @@ class Hub:
         elif a == "dev_attempt":
             t = now_ms()
             asyncio.get_running_loop().create_task(self.submit_attempt(t, float(msg.get("effort", 0.85)), 0.9, 0.8, 300, "dashboard"))
+        elif a == "calibrate":                         # ask the webcam hand tracker to recalibrate
+            self.calibrating, self.calib_until = True, now_ms() + 12000
+            await self.send_inputs({"type": "control", "action": "calibrate"})
+            self.coach("calibrate", force=True)
+        elif a == "report":                            # clinician-style markdown report (Gemini, sample fallback)
+            asyncio.get_running_loop().create_task(self._make_report())
+
+    async def _make_report(self):
+        st = self.snapshot()
+        info = {"patient": {k: (st.get("patient") or {}).get(k) for k in ("card", "age", "lesion", "affected_arm")},
+                "day": st.get("day"), "arm_function": st.get("arm_function"), "curve": st.get("curve"),
+                "effort": {"last": self.last_effort, "fatigue": self.fatigue}, "attempts_logged": self.counters,
+                "forecast": st.get("forecast"), "plan": self.plan, "plan_explanation": self.plan_expl}
+        try:
+            md = await asyncio.to_thread(self.narrator.report, info)
+        except Exception as e:  # noqa: BLE001
+            log.warning("report failed: %s", e)
+            md = "# Report unavailable\n\nSimulation only; not medical advice."
+        await self.broadcast({"type": "report", "markdown": md})
 
     async def _fast_forward(self, days: int, plan):
         if self.busy:
@@ -291,38 +549,65 @@ class Hub:
             self.narrate("This patient is already 3 months in. Pick patient A or B to start again.")
             self.event("info", {"text": "Already at 3 months: pick a patient to restart"})
             return
-        self.busy = f"Fast-forwarding {days} days ({plan})"
-        # contract §7.4: Session.fast_forward takes a plan dict (None = standard rehab), not a name
-        if plan == "ai" and not self.plan:
-            await self._run_planner()
-            self.busy = f"Fast-forwarding {days} days ({plan})"
+        session = self.session
         plan_name = plan
-        plan = {"standard": None, "none": {"target": None, "sessions_per_day": 0},
-                "ai": self.plan}.get(plan, plan) if isinstance(plan, str) else plan
-        self.narrate(f"Fast-forwarding {days} days with {({'ai': 'the AI plan', 'standard': 'normal rehab', 'none': 'no rehab'}).get(plan_name, plan_name)}.")
-        done = 0
-        while done < days:
-            n = min(1, days - done)
-            results = await asyncio.to_thread(self.session.fast_forward, n, plan)
-            for dr in results or []:
-                self._finalize_day(dr.day, dr.arm_function, attempts=dr.attempts, effort=dr.mean_effort,
-                                   stims=dr.stim_count, planned_good=(plan_name == "ai"))
-            done += n
-            await asyncio.sleep(0.06)
-        self.last_day = self.snapshot()["day"]
-        self.busy = None
-        arm = self.snapshot()["arm_function"]
-        self.event("fast_forward_done", {"days": days, "plan": plan_name, "arm_function": arm})
-        self.narrate(f"Day {self.last_day}: arm function is {arm:.0%}.")
+        self.busy = f"Fast-forwarding {days} days ({plan_name})"
+        try:
+            # contract §7.4: Session.fast_forward takes a plan dict (None = standard rehab), not a name
+            if plan_name == "ai" and not self.plan:
+                await self._run_planner(inner=True)
+                self.busy = f"Fast-forwarding {days} days ({plan_name})"
+            plan = {"standard": None, "none": {"target": None, "sessions_per_day": 0},
+                    "ai": self.plan}.get(plan_name, plan_name) if isinstance(plan_name, str) else plan_name
+            self.narrate(f"Fast-forwarding {days} days with {({'ai': 'the AI plan', 'standard': 'normal rehab', 'none': 'no rehab'}).get(plan_name, plan_name)}.")
+            if days >= 80:
+                self.coach("fast_forward", force=True)          # clip says "Fast-forwarding ninety days"
+            done = 0
+            while done < days and session is self.session:
+                n = min(1, days - done)
+                results = await asyncio.to_thread(session.fast_forward, n, plan)
+                if session is not self.session:
+                    break
+                for dr in results or []:
+                    self._finalize_day(dr.day, dr.arm_function, attempts=dr.attempts, effort=dr.mean_effort,
+                                       stims=dr.stim_count, planned_good=(plan_name == "ai"))
+                done += n
+                await asyncio.sleep(0.06)
+            if session is not self.session:
+                return
+            self.last_day = self.snapshot()["day"]
+            arm = self.snapshot()["arm_function"]
+            self.event("fast_forward_done", {"days": days, "plan": plan_name, "arm_function": arm})
+            self.narrate(f"Day {self.last_day}: arm function is {arm:.0%}.")
+            self.coach("recovery_complete", force=True)
+            self.voice_soon("fast_forward_done", {"days": days, "plan": plan_name}, True)
+        except Exception:  # noqa: BLE001
+            log.exception("fast-forward failed")
+            self.event("info", {"text": "Skipping ahead failed. Please try again."})
+        finally:
+            if session is self.session:
+                self.busy = None
 
-    async def _run_planner(self):
+    async def _run_planner(self, inner: bool = False):
+        if self.busy and not inner:
+            return
+        session = self.session
         self.busy = "AI planner testing treatment plans on copies of this brain"
-        res = await asyncio.to_thread(plan_for, self.session, 10.0)
-        self.plan, self.plan_curves, self.plan_expl = res["best"], res["curves"], res["explanation"]
-        self.busy = None
-        self.event("plan_ready", {"plan": self.plan, "explanation": self.plan_expl,
-                                  "candidates_tested": res.get("candidates_tested")})
-        self.narrate(self.plan_expl)
+        try:
+            res = await asyncio.to_thread(plan_for, session, 10.0)
+            if session is not self.session:
+                return
+            self.plan, self.plan_curves, self.plan_expl = res["best"], res["curves"], res["explanation"]
+            self.event("plan_ready", {"plan": self.plan, "explanation": self.plan_expl,
+                                      "candidates_tested": res.get("candidates_tested")})
+            self.narrate(self.plan_expl)
+            self.voice_soon("plan_ready", {"explanation": self.plan_expl, "best": self.plan}, True)
+        except Exception:  # noqa: BLE001
+            log.exception("planner failed")
+            self.event("info", {"text": "The treatment planner hit a problem. Please try again."})
+        finally:
+            if not inner and session is self.session:
+                self.busy = None
 
     # ---------- simulated seizure (dev) ----------
     def start_seizure(self):
@@ -439,7 +724,9 @@ class Hub:
             "busy": self.busy,
             "dev": {"auto": self.auto, "auto_treat": self.auto_treat},
             "device_online": (t - getattr(self, "device_seen", -1e12)) < 1500,   # Uno Q polled /api/device recently
-            "calibrating": False,
+            "calibrating": self.calibrating,
+            "ai": self.ai_info if self.mode == "ai" else None,
+            "counters": self.counters,
         }
         if t - self.edges_sent > 1000:
             msg["edges"] = self.edges
@@ -471,10 +758,12 @@ class Hub:
         arm = float(st["arm_function"])
         stim_region = self.stim_vis["region"] if (self.stim_vis and t < self.stim_vis["until"]) else None
         health = np.asarray(st["health"], dtype=float)
-        leds = led_string(self.led_activity(health), health, stim_region, t)
+        leds = self.leds.apply(led_string(self.led_activity(health), health, stim_region, t), t)
         p = st["patient"]
         sz = self.seizure
-        if t < self.intro_until:
+        if self.calibrating:
+            l1, l2 = "CALIBRATING...", "OPEN+CLOSE x3"
+        elif t < self.intro_until:
             l1, l2 = f"PATIENT {p['card']}  {p['age']}y", "STROKE: L MOTOR"
         elif sz and sz["phase"] == "pre":
             l1, l2 = "SEIZURE RISK", f"{round(sz['risk'] * 100)}%  IN ~{max(0, round(3 - (t - sz['t0']) / 1000))}s"
@@ -492,7 +781,8 @@ class Hub:
                 l2 = "TIRED? BREATHE"
             else:
                 l2 = f"EFFORT {round(self.last_effort * 100)}%"
-        rgb = [255, 0, 60] if (sz and sz["phase"] == "ictal") else arm_rgb(arm)
+        rgb = ([200, 200, 200] if self.calibrating else
+               [255, 0, 60] if (sz and sz["phase"] == "ictal") else arm_rgb(arm))
         fc = st.get("forecast") or {}
         payload = {"leds": leds, "lcd1": pad16(l1), "lcd2": pad16(l2), "rgb": rgb, "servo": self.servo_angle(),
                    "stim": self.stim_vis["kind"] if stim_region else None,
@@ -505,8 +795,14 @@ class Hub:
 
     # ---------- loops ----------
     async def run(self):
+        tick = 0
         while True:
+            tick += 1
             try:
+                if self.calibrating and now_ms() > self.calib_until:
+                    self.calibrating = False
+                if tick % 4 == 0 and not self.busy:         # ~5 Hz brain-state rows for Tiger Data
+                    self.safe_store("brain_state", self.session_id, self.last_day, self.current_activity())
                 self.tick_seizure()
                 if self.auto and not self.busy and now_ms() - self.last_auto > AUTO_EVERY_S * 1000:
                     self.last_auto = now_ms()
@@ -530,13 +826,24 @@ class Hub:
 
 
 HUB: Hub | None = None
-app = FastAPI(title="NeuroNest dashboard dev server")
-app.mount("/dashboard", StaticFiles(directory=Path(__file__).parent, html=True), name="dashboard")
 
 
-@app.on_event("startup")
-async def _startup():
-    asyncio.get_running_loop().create_task(HUB.run())
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    tasks = [asyncio.create_task(HUB.run()), asyncio.create_task(HUB.audio_worker()),
+             asyncio.create_task(HUB.ai_loop())]
+    # generate any missing coach clips in the background (committed clips already cover all of them)
+    threading.Thread(target=HUB.narrator.pregenerate, daemon=True).start()
+    yield
+    for t in tasks:
+        t.cancel()
+    try:
+        HUB.store.close()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+app = FastAPI(title="NeuroNest", lifespan=lifespan)
 
 
 @app.get("/")
@@ -544,9 +851,53 @@ async def root():
     return RedirectResponse("/dashboard/")
 
 
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return Response(status_code=204)
+
+
 @app.get("/api/health")
 async def health():
     return {"ok": True, "t_ms": now_ms(), "brain": BRAIN}
+
+
+@app.get("/api/stats")
+async def stats():
+    extra = {}
+    try:
+        extra = HUB.store.stats() or {}
+    except Exception:  # noqa: BLE001
+        pass
+    return {"attempts_logged": HUB.counters["attempts"], "stims_logged": HUB.counters["stims"],
+            "tiger": bool(extra), **extra}
+
+
+def lan_ip() -> str:
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("10.255.255.255", 1))
+        return s.getsockname()[0]
+    except Exception:  # noqa: BLE001
+        return "127.0.0.1"
+    finally:
+        s.close()
+
+
+@app.get("/qr")
+async def qr(request: Request):
+    """QR code for visitors' phones: the stimulation page on this server's LAN address."""
+    try:
+        import qrcode
+        host = request.url.hostname
+        if not host or host in ("localhost", "127.0.0.1"):
+            host = lan_ip()
+        port = request.url.port or 8000
+        img = qrcode.make(f"http://{host}:{port}/phone/")
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        return Response(buf.getvalue(), media_type="image/png")
+    except Exception as e:  # noqa: BLE001
+        return JSONResponse({"error": str(e)}, status_code=503)
 
 
 @app.get("/api/device")
@@ -595,32 +946,83 @@ async def ws_state(ws: WebSocket):
 
 @app.websocket("/ws/input")
 async def ws_input(ws: WebSocket):
+    """hands.py / keyboard.py / phone page / dashboard: squeezes, stimulation, calibration, controls."""
     await ws.accept()
+    client = {"kind": "unknown", "id": None, "rtt_ms": 0.0}
+    HUB.input_clients[ws] = client
     try:
         while True:
-            msg = json.loads(await ws.receive_text())
-            if msg.get("type") == "ping":
-                await ws.send_text(json.dumps({"type": "pong", "client_t": msg.get("client_t"), "server_t_ms": now_ms()}))
-            else:
-                await handle_input(msg)
+            raw = await ws.receive_text()
+            try:
+                msg = json.loads(raw)
+            except Exception:  # noqa: BLE001
+                continue
+            try:
+                if msg.get("type") == "ping":
+                    if msg.get("rtt_ms") is not None:
+                        client["rtt_ms"] = float(msg["rtt_ms"])
+                    await ws.send_text(json.dumps({"type": "pong", "client_t": msg.get("client_t"), "server_t_ms": now_ms()}))
+                else:
+                    await handle_input(msg, client)
+            except Exception:  # noqa: BLE001
+                log.exception("bad input message ignored: %s", raw[:200])
     except (WebSocketDisconnect, Exception):
         pass
+    finally:
+        HUB.input_clients.pop(ws, None)
 
 
-async def handle_input(msg: dict):
+def _clean_t(t_ms, default: float) -> float:
+    """Client timestamps are server-monotonic ms (same laptop); anything implausible falls back to default."""
+    try:
+        t = float(t_ms)
+    except (TypeError, ValueError):
+        return default
+    return t if abs(t - default) < 5000 else default
+
+
+async def handle_input(msg: dict, client: dict | None = None):
+    client = client if client is not None else {"kind": "dashboard", "rtt_ms": 0.0}
     t = msg.get("type")
-    if t == "attempt":
+    now = now_ms()
+    if t == "hello":
+        client["kind"], client["id"] = msg.get("client", "unknown"), msg.get("id")
+    elif t == "attempt":
+        if msg.get("t_ms") is None:
+            onset = now - float(msg.get("rtt_ms", client.get("rtt_ms", 0.0)) or 0.0) / 2
+        else:
+            onset = _clean_t(msg.get("t_ms"), now - RESOLVE_MS)
+        effort = float(np.clip(float(msg.get("effort", 0.7)), 0.0, 1.0))
         asyncio.get_running_loop().create_task(HUB.submit_attempt(
-            float(msg.get("t_ms", now_ms())), float(msg.get("effort", 0.7)), float(msg.get("depth", 0.8)),
-            float(msg.get("speed", 0.7)), float(msg.get("hold_ms", 300)), msg.get("source", "input")))
+            onset, effort, float(msg.get("depth", effort)), float(msg.get("speed", effort)),
+            float(msg.get("hold_ms", 300)), msg.get("source", client.get("kind", "input"))))
+    elif t == "attempt_onset":
+        HUB.event("attempt_onset", {"t_ms": msg.get("t_ms"), "source": msg.get("source")})
     elif t == "stim":
-        tt = msg.get("t_ms")
-        if tt is None:
-            tt = now_ms() - float(msg.get("rtt_ms", 0)) / 2
-        HUB.submit_stim(float(tt), msg["region"], msg["kind"], actor=msg.get("actor", "human"),
+        if msg.get("t_ms") is None:
+            rtt = float(msg.get("rtt_ms", client.get("rtt_ms", 0.0)) or 0.0)
+            client["rtt_ms"] = rtt
+            tt = now - rtt / 2
+        else:
+            tt = _clean_t(msg.get("t_ms"), now)
+        HUB.submit_stim(tt, str(msg.get("region", "lPMCDL")), "calm" if msg.get("kind") == "calm" else "excite",
+                        actor="ai" if msg.get("actor") == "ai" else "human",
                         intensity=float(msg.get("intensity", 1.0)))
+    elif t == "calibration":
+        HUB.calibrating = False
+        log.info("calibration: %s", {k: msg.get(k) for k in ("open", "closed", "v_ref")})
+    elif t == "calibration_state":
+        HUB.calibrating = bool(msg.get("calibrating"))
+        HUB.calib_until = now + 15000
     elif t == "control":
         await HUB.control(msg)
+
+
+# static mounts last, so the API routes above always win
+for _name, _dir, _html in (("dashboard", Path(__file__).parent, True), ("phone", ROOT / "web" / "phone", True),
+                           ("audio", AUDIO_DIR, False)):
+    _dir.mkdir(parents=True, exist_ok=True)
+    app.mount(f"/{_name}", StaticFiles(directory=str(_dir), html=_html), name=_name)
 
 
 if __name__ == "__main__":
