@@ -180,11 +180,11 @@ h3 { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: v
 .outcomes small { color: var(--dim); font-size: 10.5px; }
 .outcomes .ai b { color: var(--ok); } .outcomes .st b { color: var(--amber); } .outcomes .no b { color: var(--bad); }
 .log { list-style: none; margin: 0; padding: 0; overflow: hidden; flex: 1; min-height: 0; }
-.log li { display: grid; grid-template-columns: 9px 1fr auto; gap: 8px; align-items: center; padding: 5px 0; border-bottom: 1px solid rgba(120,160,230,.06); font-size: 12px; color: var(--soft); }
+.log li { display: grid; grid-template-columns: 9px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 5px 0; border-bottom: 1px solid rgba(120,160,230,.06); font-size: 12px; color: var(--soft); }
 .log li i { width: 8px; height: 8px; border-radius: 50%; }
 .log li .when { color: var(--dim); font-family: var(--mono); font-size: 10.5px; }
 .log .excite i { background: var(--excite); } .log .calm i { background: var(--calm); }
-.log .seizure i { background: var(--seizure); } .log .plan i { background: var(--ok); } .log .info i { background: var(--dim); }
+.log .seizure i { background: var(--seizure); } .log .plan i { background: var(--ok); } .log .note i { background: var(--dim); }
 .v { font-size: 10px; padding: 1px 6px; border-radius: 999px; margin-left: 6px; }
 .v.good { background: rgba(52,211,153,.18); color: var(--ok); } .v.early, .v.late { background: rgba(245,165,36,.18); color: var(--amber); }
 .v.wrong_region { background: rgba(255,107,107,.18); color: var(--bad); } .v.ai { background: rgba(56,217,245,.15); color: var(--mid); }

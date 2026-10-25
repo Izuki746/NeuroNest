@@ -152,7 +152,7 @@ function renderPlan(plan, curves, expl) {
   const when = plan.target ? `${Math.abs(plan.offset_ms)} ms ${plan.offset_ms <= 0 ? 'before' : 'after'} each movement` : '';
   el.innerHTML = `
     <div class="plan-title"><span class="sw" style="background:${col};box-shadow:0 0 10px ${col}"></span>AI plan: ${what}</div>
-    <div class="plan-meta">${when ? `<span>${when}</span>` : ''}<span>${plan.sessions_per_day ?? 1} session${plan.sessions_per_day === 1 ? '' : 's'}/day × ${plan.attempts_per_session ?? 20}</span><span>from day ${plan.start_day ?? 1}</span><span>${plan.kind === 'calm' ? 'yellow light' : 'blue light'}</span></div>
+    <div class="plan-meta">${when ? `<span>${when}</span>` : ''}<span>${plan.sessions_per_day ?? 1} session${plan.sessions_per_day === 1 ? '' : 's'}/day × ${plan.attempts_per_session ?? 20}</span><span>from day ${plan.start_day ?? 1}</span>${plan.target ? `<span>${plan.kind === 'calm' ? 'yellow light' : 'blue light'}</span>` : ''}</div>
     ${expl ? `<p class="plan-expl">${expl}</p>` : ''}
     <div class="outcomes"><div class="ai"><b>${end('ai')}%</b><small>AI plan · day 90</small></div>
       <div class="st"><b>${end('standard')}%</b><small>standard rehab</small></div>
@@ -165,7 +165,7 @@ function onEvent(m) {
   switch (m.kind) {
     case 'patient':
       logItems.length = 0; lastStim = null;
-      addLog('info', `New patient ${d.card}: ${d.age} years, stroke in ${Object.keys(d.lesion || {}).map(regionShort).join(' + ')}`);
+      addLog('note', `New patient ${d.card}: ${d.age} years, stroke in ${Object.keys(d.lesion || {}).map(regionShort).join(' + ')}`);
       setStory(`New patient ${d.card}: ${d.age} years old with a stroke in the <b>left motor area</b> (dark dots), so their <b>right arm is weak</b>. Squeeze your hand to start rehab.`, '', 'NEW PATIENT', 7000, true);
       break;
     case 'stim': lastStim = { ...d, t: performance.now() }; break;
@@ -197,14 +197,14 @@ function onEvent(m) {
       break;
     case 'fast_forward_done': {
       const name = { ai: 'the AI plan', standard: 'normal rehab', none: 'no rehab' }[d.plan] || d.plan;
-      addLog('info', `Skipped ${d.days} days with ${name} → arm ${Math.round((d.arm_function || 0) * 100)}%`);
+      addLog('note', `Skipped ${d.days} days with ${name} → arm ${Math.round((d.arm_function || 0) * 100)}%`);
       setStory(`After ${d.days} more days with <b>${name}</b>, the right arm is at <b>${Math.round((d.arm_function || 0) * 100)}%</b>. Pick a patient again to compare another treatment.`, 'good', 'TIME SKIPPED', 9000, true);
       break;
     }
     case 'info': setStory(d.text || '', 'warn', 'NOTE', 5000, true); break;
-    case 'day_end': addLog('info', `Day ${d.day} done · arm ${Math.round((d.arm_function || 0) * 100)}%`, d.day); break;
+    case 'day_end': addLog('note', `Day ${d.day} done · arm ${Math.round((d.arm_function || 0) * 100)}%`, d.day); break;
     case 'fatigue':
-      addLog('info', 'Effort dropping: the patient is getting tired');
+      addLog('note', 'Effort dropping: the patient is getting tired');
       setStory('Effort is dropping: the patient is getting tired. Weaker squeezes mean slower recovery, so a short break helps.', 'warn', 'FATIGUE', 6000, true);
       break;
     default: break;

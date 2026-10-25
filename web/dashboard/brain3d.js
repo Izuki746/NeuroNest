@@ -86,20 +86,64 @@ export class Brain3D {
     });
   }
 
+  // Brain-shaped holographic outline: two folded hemispheres (flat medial wall, temporal lobes),
+  // cerebellum and brain stem, drawn with a rim-glow shader so the regions inside stay visible.
+  // three.js axes here: X = right(+)/left(-), Y = up, Z = back(+)/front(-).
   _buildShells(pts, names) {
-    for (const side of ['l', 'r']) {
-      const idx = names.map((n, i) => (n[0] === side ? i : -1)).filter((i) => i >= 0);
-      const box = new THREE.Box3().setFromPoints(idx.map((i) => pts[i]));
-      const c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3());
-      const rad = new THREE.Vector3(s.x / 2 + 9, s.y / 2 + 10, s.z / 2 + 10);
-      const N = 1600, arr = new Float32Array(N * 3), gold = Math.PI * (3 - Math.sqrt(5));
-      for (let k = 0; k < N; k++) {
-        const y = 1 - (k / (N - 1)) * 2, r = Math.sqrt(1 - y * y), th = gold * k;
-        arr.set([c.x + Math.cos(th) * r * rad.x, c.y + y * rad.y, c.z + Math.sin(th) * r * rad.z], k * 3);
+    const all = new THREE.Box3().setFromPoints(pts);
+    const size = all.getSize(new THREE.Vector3()), ctr = all.getCenter(new THREE.Vector3());
+    const shellMat = (opacity, color = '#4fa8ff') => new THREE.ShaderMaterial({
+      uniforms: { uColor: { value: new THREE.Color(color) }, uOpacity: { value: opacity } },
+      vertexShader: `varying vec3 vN; varying vec3 vV;
+        void main() { vec4 mv = modelViewMatrix * vec4(position, 1.0);
+          vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }`,
+      fragmentShader: `uniform vec3 uColor; uniform float uOpacity; varying vec3 vN; varying vec3 vV;
+        void main() { float rim = 1.0 - abs(dot(normalize(vN), normalize(vV)));
+          float a = uOpacity * (0.03 + 0.97 * pow(rim, 3.0));
+          gl_FragColor = vec4(uColor * (0.55 + 0.9 * rim), a); }`,
+      transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+    });
+    // gyri/sulci: a few overlapping waves give a folded-cortex look
+    const folds = (x, y, z) => 0.022 * Math.sin(0.16 * z + 1.1 * Math.sin(0.09 * y)) * Math.cos(0.14 * y + 0.6 * Math.sin(0.08 * z))
+      + 0.016 * Math.sin(0.11 * x + 0.13 * z + 1.7 * Math.cos(0.07 * y))
+      + 0.010 * Math.sin(0.23 * (y - z) + 0.4);
+
+    for (const side of [-1, 1]) {                        // -1 = left hemisphere, +1 = right
+      const hx = size.x / 4 + 6, hy = size.y / 2 + 10, hz = size.z / 2 + 11;   // half-sizes
+      const cx = ctr.x + side * (hx * 0.9 + 0.8);                     // hemispheres nearly touch in the middle
+      const geo = new THREE.SphereGeometry(1, 120, 80);
+      const p = geo.attributes.position, v = new THREE.Vector3();
+      for (let i = 0; i < p.count; i++) {
+        v.fromBufferAttribute(p, i);
+        let x = v.x, y = v.y, z = v.z;
+        if (x * side < 0) x *= 0.9;                     // flatten the medial wall (where hemispheres meet)
+        if (y < 0) y *= 0.8;                            // flatter underside
+        const temporal = Math.exp(-((z - 0.05) ** 2) / 0.12) * Math.max(0, -y) * Math.max(0, x * side);
+        y -= 0.28 * temporal; x += side * 0.08 * temporal;          // temporal lobe bulges down and out
+        const frontTaper = z < 0 ? 1 - 0.12 * (-z) : 1 - 0.05 * z;  // slightly narrower at the front
+        let X = x * hx * frontTaper, Y = y * hy, Z = z * hz;
+        const f = 1 + folds(X + side * 3, Y, Z);
+        p.setXYZ(i, cx + X * f, ctr.y + Y * f, ctr.z + Z * f);
       }
-      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(arr, 3));
-      this.root.add(new THREE.Points(g, new THREE.PointsMaterial({ color: C.shell, size: 0.7, transparent: true, opacity: 0.35, depthWrite: false })));
+      geo.computeVertexNormals();
+      this.root.add(new THREE.Mesh(geo, shellMat(0.32)));
     }
+
+    // cerebellum (back, underneath) and brain stem
+    const cere = new THREE.SphereGeometry(1, 80, 48), cp = cere.attributes.position, w = new THREE.Vector3();
+    const cy = ctr.y - size.y / 2 - 2, cz = ctr.z + size.z / 2 - 4;
+    for (let i = 0; i < cp.count; i++) {
+      w.fromBufferAttribute(cp, i);
+      const X = w.x * (size.x / 2.6), Y = w.y * 9, Z = w.z * 13;
+      const f = 1 + 0.05 * Math.sin(1.6 * Y + 0.15 * X);            // fine horizontal folds
+      cp.setXYZ(i, ctr.x + X * f, cy + Y * f, cz + Z * f);
+    }
+    cere.computeVertexNormals();
+    this.root.add(new THREE.Mesh(cere, shellMat(0.28, '#6f8dff')));
+    const stem = new THREE.CylinderGeometry(5.5, 4, 26, 32, 1, true);
+    stem.rotateX(0.25);
+    stem.translate(ctr.x, ctr.y - size.y / 2 - 14, ctr.z + size.z / 2 - 22);
+    this.root.add(new THREE.Mesh(stem, shellMat(0.24, '#6f8dff')));
   }
 
   _buildStructure(edges) {
