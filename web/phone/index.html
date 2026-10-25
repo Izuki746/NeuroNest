@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>NeuroNest Stim</title>
+<style>
+  :root { --bg:#0b1020; --fg:#e8ecf8; --muted:#8a94b8; --blue:#2f6bff; --yellow:#f2b705; --green:#35d07f; --red:#ff5a5a; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg); font-family: system-ui, sans-serif; }
+  body { display:flex; flex-direction:column; padding:12px 16px; gap:10px; user-select:none; -webkit-user-select:none; }
+  header { display:flex; justify-content:space-between; align-items:baseline; }
+  h1 { font-size:18px; margin:0; letter-spacing:.08em; }
+  #conn { font-size:12px; color:var(--muted); }
+  #conn.ok { color:var(--green); }
+  #feedback { text-align:center; min-height:84px; display:flex; flex-direction:column; justify-content:center; }
+  #timing { font-size:30px; font-weight:700; }
+  #timing.good { color:var(--green); } #timing.bad { color:var(--red); }
+  #arm { font-size:14px; color:var(--muted); }
+  #flash { height:10px; border-radius:5px; background:var(--green); opacity:0; transition:opacity .45s ease-out; }
+  #flash.on { opacity:1; transition:none; }
+  #chips { display:flex; flex-wrap:wrap; gap:8px; }
+  .chip { padding:10px 14px; border-radius:999px; border:1px solid #2a3560; background:#141b36; color:var(--fg); font-size:15px; }
+  .chip.sel { background:#2a3560; border-color:#6f86ff; }
+  .chip small { color:var(--muted); }
+  #btns { flex:1; display:flex; flex-direction:column; gap:12px; min-height:240px; }
+  .big { flex:1; border:none; border-radius:22px; font-size:34px; font-weight:800; color:#fff; }
+  #excite { background:var(--blue); } #calm { background:var(--yellow); color:#222; }
+  .big:active { filter:brightness(1.25); transform:scale(.99); }
+  #squeeze { padding:14px; border-radius:14px; border:1px dashed #4a5690; background:transparent; color:var(--muted); font-size:16px; }
+  footer { font-size:11px; color:var(--muted); text-align:center; }
+</style>
+</head>
+<body>
+<header><h1>NEURONEST</h1><span id="conn">connecting...</span></header>
+<div id="feedback">
+  <div id="timing">Tap to stimulate</div>
+  <div id="arm">Arm --</div>
+</div>
+<div id="flash"></div>
+<div id="chips"></div>
+<div id="btns">
+  <button id="excite" class="big">EXCITE</button>
+  <button id="calm" class="big">CALM</button>
+</div>
+<button id="squeeze">SQUEEZE (backup)</button>
+<footer>Simulation only. Not a medical device.</footer>
+<script src="phone.js"></script>
+</body>
+</html>
