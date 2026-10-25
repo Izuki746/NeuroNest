@@ -81,6 +81,9 @@ function onState(s) {
   if (s.edges) brain.setRewiring(s.edges);
   $('brainKind').textContent = s.brain ? `${s.brain} brain` : 'live';
   $('boardConn').classList.toggle('on', !!s.device_online);
+  const cam = s.webcam || {};
+  $('camBtn').classList.toggle('on', !!cam.connected);
+  $('camBtn').textContent = cam.connected ? '📷 Webcam on' : (cam.managed ? '📷 Starting…' : '📷 Webcam');
   if (s.patient) {
     $('patientCard').textContent = s.patient.card;
     const les = Object.entries(s.patient.lesion || {}).map(([r, h]) => `${regionShort(r)} ${Math.round((1 - h) * 100)}% damaged`).join(', ');
@@ -328,6 +331,7 @@ document.addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
   if (b.dataset.patient) control('new_patient', { card: b.dataset.patient });
   else if (b.dataset.ff) control('fast_forward', { days: 90, plan: b.dataset.ff });
+  else if (b.hasAttribute('data-cam')) control((S.webcam && (S.webcam.connected || S.webcam.managed)) ? 'webcam_stop' : 'webcam_start');
   else if (b.dataset.ctl) control(b.dataset.ctl);
   else if (b.dataset.dev) control(b.dataset.dev, { on: !b.classList.contains('on') });
   else if (b.hasAttribute('data-mode')) control('set_mode', { mode: S.mode === 'ai' ? 'human' : 'ai' });

@@ -245,6 +245,7 @@ a.btn { text-decoration: none; display: inline-block; }
 .btn.calm { border-color: var(--calm); color: #fff0b8; background: transparent; }
 .btn.toggle.on { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
 .btn.toggle.on::before { content: "✓ "; }
+#camBtn.on::before { content: ""; }
 .btn.active { background: var(--primary); border-color: var(--primary); color: #061016; }
 .menu { position: relative; }
 .menu summary { list-style: none; }

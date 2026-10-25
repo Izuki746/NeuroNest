@@ -22,6 +22,7 @@ import math
 import os
 import random
 import socket
+import subprocess
 import statistics
 import sys
 import threading
@@ -65,6 +66,7 @@ AUTO_EVERY_S = 3.5
 SEIZURE_PULSE_HZ = 1.2          # slow pulse: never above 3 Hz (photosensitivity)
 AUDIO_DIR = ROOT / "server" / "audio_cache"
 AI_CUE_EVERY_S = 3.0
+SERVER_PORT = 8000                 # set from --port at startup; the webcam tracker connects back to it
 
 
 class _NullNarrator:
@@ -172,6 +174,7 @@ class Hub:
         self.calibrating, self.calib_until = False, 0.0
         self.counters = {"attempts": 0, "stims": 0}
         self.leds = LedLimiter()
+        self.webcam_proc: subprocess.Popen | None = None   # webcam tracker started from the dashboard (optional)
         self.new_patient(card)
 
     # ---------- Person C integrations: storage, voice coach, narration ----------
@@ -256,6 +259,39 @@ class Hub:
             except Exception:  # noqa: BLE001
                 self.input_clients.pop(ws, None)
 
+    # ---------- optional webcam squeeze tracker (inputs/hands.py), started/stopped from the dashboard ----------
+    def webcam_running(self) -> bool:
+        return self.webcam_proc is not None and self.webcam_proc.poll() is None
+
+    def start_webcam(self, camera: int = 0) -> None:
+        if self.webcam_running() or any(c.get("kind") == "hands" for c in self.input_clients.values()):
+            self.event("info", {"text": "The webcam is already on."})
+            return
+        win = sys.platform == "win32"
+        py = ROOT / ".venv-hands" / ("Scripts/python.exe" if win else "bin/python")
+        if not py.exists():
+            self.event("info", {"text": "The webcam isn't set up on this laptop yet: run run_hands.bat once (it installs MediaPipe)."})
+            return
+        try:
+            self.webcam_proc = subprocess.Popen(
+                [str(py), str(ROOT / "inputs" / "hands.py"), "--server", f"ws://127.0.0.1:{SERVER_PORT}/ws/input",
+                 "--camera", str(camera)],
+                cwd=str(ROOT), creationflags=subprocess.CREATE_NO_WINDOW if win else 0)
+            self.event("info", {"text": "Webcam starting: open and close your hand 3 times to calibrate."})
+        except Exception as e:  # noqa: BLE001
+            log.warning("webcam start failed: %s", e)
+            self.event("info", {"text": "Couldn't start the webcam tracker."})
+
+    def stop_webcam(self) -> None:
+        p, self.webcam_proc = self.webcam_proc, None
+        if p is not None and p.poll() is None:
+            p.terminate()
+            try:
+                p.wait(timeout=3)
+            except Exception:  # noqa: BLE001
+                p.kill()
+        self.calibrating = False
+
     # ---------- AI mode: spoken "Squeeze... now!" cue, learned reaction lag, auto-timed stimulation ----------
     async def ai_loop(self) -> None:
         while True:
@@ -307,6 +343,7 @@ class Hub:
         self.last_day = self.snapshot()["day"]
         self.intro_until = now_ms() + 4000
         self.busy = None
+        self.busy_note_for = None                             # which busy period we already showed "squeezes paused" for
         self.device_seq, self.device_last = 0, None
         self._led_act = None                                  # clear LED smoothing from the previous patient
         self.reset_id = getattr(self, "reset_id", 0) + 1      # tells the Uno Q to wipe its displays and start fresh
@@ -444,6 +481,13 @@ class Hub:
     async def submit_attempt(self, t_onset: float, effort: float, depth: float, speed: float,
                              hold_ms: float, source: str):
         await asyncio.sleep(max(0.0, (t_onset + RESOLVE_MS - now_ms()) / 1000.0))
+        if self.busy:
+            # Skip-ahead / planner is holding the brain. Queuing would replay every squeeze at once when it
+            # finishes (arm % racing, servo moving after the skip), so drop it and say why, once per busy period.
+            if self.busy_note_for != self.busy:
+                self.busy_note_for = self.busy
+                self.event("info", {"text": "Squeezes are paused while the AI is working. Try again when it's done."})
+            return
         session = self.session
         try:
             res = await asyncio.to_thread(session.submit_attempt, t_onset, effort, depth, speed, hold_ms)
@@ -537,6 +581,12 @@ class Hub:
         elif a == "dev_attempt":
             t = now_ms()
             asyncio.get_running_loop().create_task(self.submit_attempt(t, float(msg.get("effort", 0.85)), 0.9, 0.8, 300, "dashboard"))
+        elif a == "webcam_start":                      # optional: launch the webcam squeeze tracker
+            self.start_webcam(int(msg.get("camera", 0)))
+        elif a == "webcam_stop":
+            if not self.webcam_running() and any(c.get("kind") == "hands" for c in self.input_clients.values()):
+                self.event("info", {"text": "This webcam was started outside the dashboard: press Q in its window to stop it."})
+            self.stop_webcam()
         elif a == "calibrate":                         # ask the webcam hand tracker to recalibrate
             self.calibrating, self.calib_until = True, now_ms() + 12000
             await self.send_inputs({"type": "control", "action": "calibrate"})
@@ -743,6 +793,8 @@ class Hub:
             "calibrating": self.calibrating,
             "ai": self.ai_info if self.mode == "ai" else None,
             "counters": self.counters,
+            "webcam": {"connected": any(c.get("kind") == "hands" for c in self.input_clients.values()),
+                       "managed": self.webcam_running()},
         }
         if t - self.edges_sent > 1000:
             msg["edges"] = self.edges
@@ -855,6 +907,10 @@ async def lifespan(_app: FastAPI):
         t.cancel()
     try:
         HUB.store.close()
+    except Exception:  # noqa: BLE001
+        pass
+    try:
+        HUB.stop_webcam()
     except Exception:  # noqa: BLE001
         pass
 
@@ -1062,6 +1118,7 @@ if __name__ == "__main__":
     ap.add_argument("--card", default="B")
     args = ap.parse_args()
     logging.basicConfig(level=logging.INFO)
+    SERVER_PORT = args.port
     HUB = Hub(args.card.upper())
     print(f"NeuroNest dashboard dev server ({BRAIN} brain): http://localhost:{args.port}/dashboard/")
     uvicorn.run(app, host="0.0.0.0", port=args.port, log_level="warning")

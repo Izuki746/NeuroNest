@@ -7,7 +7,7 @@ effort gauge and stimulation timing, day-90 forecast (digital twins), recovery c
 closing recovery window, and AI plan vs standard vs no-rehab comparison plus a treatment log.
 
 ## Run it (production)
-**Everything at once:** double-click **`run_all.bat`** in the repo root (`run_all.bat B` for patient B, `run_all.bat A 1` for camera 1). It starts the server in its own window, waits until it's ready, opens the dashboard, and starts the webcam tracker. Stop: close the *NeuroNest server* window and press **Q** in the webcam window.
+**Everything at once:** double-click **`run_all.bat`** in the repo root (from PowerShell: `.\run_all.bat`). It starts the server in its own window, waits until it's ready and opens the dashboard. **The webcam is optional:** turn it on/off with the dashboard's **📷 Webcam** button, or start it with the launcher: `.\run_all.bat A cam` (`.\run_all.bat A cam 1` for camera 1). `.\run_all.bat B` starts with patient B. Stop: close the *NeuroNest server* window.
 
 Or step by step:
 ```
