@@ -21,7 +21,7 @@ fetch('connectome.json').then((r) => r.json()).then((c) => brain.setConnectome(c
 let stateWs, inputWs, retry = 500;
 function connect() {
   stateWs = new WebSocket(`${wsProto}://${host}/ws/state`);
-  stateWs.onopen = () => { $('conn').classList.add('on'); retry = 500; };
+  stateWs.onopen = () => { $('conn').classList.add('on'); retry = 500; claimSpeaker(); };
   stateWs.onclose = () => { $('conn').classList.remove('on'); setTimeout(connect, retry); retry = Math.min(retry * 2, 5000); };
   stateWs.onmessage = (e) => { const m = JSON.parse(e.data); if (m.type === 'state') onState(m); else if (m.type === 'event') onEvent(m); else if (m.type === 'audio') play(m.url, m.id); };
   inputWs = new WebSocket(`${wsProto}://${host}/ws/input`);
@@ -36,13 +36,18 @@ function control(action, extra = {}) {
 function stim(region, kind) {
   if (inputWs && inputWs.readyState === 1) inputWs.send(JSON.stringify({ type: 'stim', region, kind, intensity: 1.0, rtt_ms: 0, id: 'dashboard' }));
 }
+// Audio: the server sends clips to ONE screen only (the tab that last claimed 'speaker': loaded, focused or clicked).
+function claimSpeaker() { if (stateWs && stateWs.readyState === 1 && document.visibilityState === 'visible') stateWs.send(JSON.stringify({ type: 'speaker' })); }
+document.addEventListener('visibilitychange', claimSpeaker);
+window.addEventListener('focus', claimSpeaker);
+document.addEventListener('pointerdown', claimSpeaker);
 // Audio: exactly one voice at a time, from exactly one dashboard tab.
 // - only the visible tab speaks (background tabs / extra windows stay silent)
 // - the same clip is never played twice by different tabs (localStorage claim)
 // - a new clip stops the previous one instead of talking over it
 let currentAudio = null;
 function play(url, id) {
-  if (!url || document.visibilityState !== 'visible') return;
+  if (!url) return;
   const key = `nn_audio_${id ?? url}`;
   try {
     const claimed = Number(localStorage.getItem(key) || 0);

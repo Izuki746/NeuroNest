@@ -157,6 +157,9 @@ def load_weights(names: list[str]) -> np.ndarray:
 class Hub:
     def __init__(self, card: str = "B"):
         self.clients: set[WebSocket] = set()
+        self.screens: dict[int, dict] = {}               # connected /ws/state viewers (diagnostics, /api/stats)
+        self.speaker: WebSocket | None = None            # the ONE dashboard that plays audio (last focused tab)
+        self.client_order: list[WebSocket] = []          # connection order, for picking a default speaker
         self.input_clients: dict[WebSocket, dict] = {}   # hands / keyboard / phone, with kind + measured rtt
         self.auto = False          # nothing happens until someone squeezes (turn on in ⚙ Demo → Auto squeeze)
         self.auto_treat = True
@@ -221,17 +224,29 @@ class Hub:
         while True:
             kind, item = await self.audio_q.get()
             try:
-                if kind == "clip":
-                    dur = self._clip_secs(item)
-                    self.audio_seq += 1
-                    await self.broadcast({"type": "audio", "url": item, "id": f"a{self.audio_seq}"})
-                else:
-                    dur = self._clip_secs(item.get("audio_url"))
-                    self.narration = {"text": item.get("text", ""), "audio_url": item.get("audio_url"), "t_ms": now_ms()}
+                url = item if kind == "clip" else item.get("audio_url")
+                dur = self._clip_secs(url)
+                self.audio_seq += 1
+                await self.send_audio({"type": "audio", "url": url, "id": f"a{self.audio_seq}"})
+                if kind != "clip":           # narration text shows on every screen; its audio went to the speaker only
+                    self.narration = {"text": item.get("text", ""), "audio_url": None, "t_ms": now_ms()}
                 self.audio_until = now_ms() + dur * 1000 + 250
                 await asyncio.sleep(dur + 0.25)
             except Exception as e:  # noqa: BLE001
                 log.warning("audio worker error: %s", e)
+
+    async def send_audio(self, msg: dict) -> None:
+        """Audio goes to exactly one screen, so several open tabs/devices never speak over each other."""
+        ws = self.speaker if self.speaker in self.clients else None
+        if ws is None:                   # nobody claimed the speaker yet: use the most recently connected dashboard
+            dash = [c for c in self.client_order if c in self.clients and self.screens.get(id(c), {}).get("page") == "dashboard"]
+            ws = dash[-1] if dash else None
+        if ws is None:
+            return
+        try:
+            await asyncio.wait_for(ws.send_text(json.dumps(msg)), timeout=0.5)
+        except Exception:  # noqa: BLE001
+            self.clients.discard(ws)
 
     async def send_inputs(self, msg: dict) -> None:
         data = json.dumps(msg)
@@ -870,7 +885,7 @@ async def stats():
     except Exception:  # noqa: BLE001
         pass
     return {"attempts_logged": HUB.counters["attempts"], "stims_logged": HUB.counters["stims"],
-            "tiger": bool(extra), **extra}
+            "tiger": bool(extra), "screens": list(HUB.screens.values()), **extra}
 
 
 def lan_ip() -> str:
@@ -933,6 +948,11 @@ async def control(req: Request):
 async def ws_state(ws: WebSocket):
     await ws.accept()
     HUB.clients.add(ws)
+    HUB.client_order = [c for c in HUB.client_order if c in HUB.clients] + [ws]
+    ua = ws.headers.get("user-agent", "")
+    HUB.screens[id(ws)] = {"from": ws.client.host if ws.client else "?",
+                           "page": "phone" if "/phone" in ws.headers.get("referer", "") else "dashboard",
+                           "browser": ua[-60:]}
     info = HUB.info
     await ws.send_text(json.dumps({"type": "event", "kind": "patient", "t_ms": now_ms(),
                                    "data": {"card": info["card"], "age": info["age"], "lesion": info["lesion"],
@@ -940,9 +960,19 @@ async def ws_state(ws: WebSocket):
     try:
         while True:
             txt = await ws.receive_text()           # dashboard may also send control/stim here
-            await handle_input(json.loads(txt))
+            try:
+                msg = json.loads(txt)
+            except Exception:  # noqa: BLE001
+                continue
+            if msg.get("type") == "speaker":        # this tab is focused: it becomes the one that plays audio
+                HUB.speaker = ws
+                continue
+            await handle_input(msg)
     except (WebSocketDisconnect, Exception):
         HUB.clients.discard(ws)
+        HUB.screens.pop(id(ws), None)
+        if HUB.speaker is ws:
+            HUB.speaker = None
 
 
 @app.websocket("/ws/input")
