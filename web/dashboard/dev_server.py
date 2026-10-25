@@ -165,6 +165,7 @@ class Hub:
         self.store = load_storage()
         self.audio_q: asyncio.Queue = asyncio.Queue()
         self.audio_until = 0.0
+        self.audio_seq = 0
         self.calibrating, self.calib_until = False, 0.0
         self.counters = {"attempts": 0, "stims": 0}
         self.leds = LedLimiter()
@@ -222,7 +223,8 @@ class Hub:
             try:
                 if kind == "clip":
                     dur = self._clip_secs(item)
-                    await self.broadcast({"type": "audio", "url": item})
+                    self.audio_seq += 1
+                    await self.broadcast({"type": "audio", "url": item, "id": f"a{self.audio_seq}"})
                 else:
                     dur = self._clip_secs(item.get("audio_url"))
                     self.narration = {"text": item.get("text", ""), "audio_url": item.get("audio_url"), "t_ms": now_ms()}
@@ -309,8 +311,9 @@ class Hub:
         self.narrate(f"Patient {card}: {info['age']} years old, stroke in the left motor cortex. "
                      f"Their right arm is weak.")
         if card in ("A", "B"):
-            self.coach(f"patient_{card}", force=True)
-        self.voice_soon("patient", {"card": card, "age": info.get("age")})
+            self.coach(f"patient_{card}", force=True)        # the clip already introduces the patient
+        else:
+            self.voice_soon("patient", {"card": card, "age": info.get("age")})
 
     # ---------- non-blocking brain snapshot ----------
     def snapshot(self) -> dict:
@@ -480,7 +483,6 @@ class Hub:
             self.event("fatigue", {"rolling": rolling, "start": start})
             self.narrate("Effort is dropping. Two more, really squeeze!")
             self.coach("fatigue_1", force=True)
-            self.voice_soon("fatigue", {"rolling": round(rolling, 2), "session_start": round(start, 2)})
             spoke = True
         elif fat:
             self.fatigue_attempts += 1
@@ -580,7 +582,6 @@ class Hub:
             self.event("fast_forward_done", {"days": days, "plan": plan_name, "arm_function": arm})
             self.narrate(f"Day {self.last_day}: arm function is {arm:.0%}.")
             self.coach("recovery_complete", force=True)
-            self.voice_soon("fast_forward_done", {"days": days, "plan": plan_name}, True)
         except Exception:  # noqa: BLE001
             log.exception("fast-forward failed")
             self.event("info", {"text": "Skipping ahead failed. Please try again."})

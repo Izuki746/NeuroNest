@@ -23,7 +23,7 @@ function connect() {
   stateWs = new WebSocket(`${wsProto}://${host}/ws/state`);
   stateWs.onopen = () => { $('conn').classList.add('on'); retry = 500; };
   stateWs.onclose = () => { $('conn').classList.remove('on'); setTimeout(connect, retry); retry = Math.min(retry * 2, 5000); };
-  stateWs.onmessage = (e) => { const m = JSON.parse(e.data); if (m.type === 'state') onState(m); else if (m.type === 'event') onEvent(m); else if (m.type === 'audio') play(m.url); };
+  stateWs.onmessage = (e) => { const m = JSON.parse(e.data); if (m.type === 'state') onState(m); else if (m.type === 'event') onEvent(m); else if (m.type === 'audio') play(m.url, m.id); };
   inputWs = new WebSocket(`${wsProto}://${host}/ws/input`);
   inputWs.onopen = () => inputWs.send(JSON.stringify({ type: 'hello', client: 'dashboard', id: 'dashboard' }));
 }
@@ -36,7 +36,23 @@ function control(action, extra = {}) {
 function stim(region, kind) {
   if (inputWs && inputWs.readyState === 1) inputWs.send(JSON.stringify({ type: 'stim', region, kind, intensity: 1.0, rtt_ms: 0, id: 'dashboard' }));
 }
-function play(url) { if (url) new Audio(url).play().catch(() => {}); }
+// Audio: exactly one voice at a time, from exactly one dashboard tab.
+// - only the visible tab speaks (background tabs / extra windows stay silent)
+// - the same clip is never played twice by different tabs (localStorage claim)
+// - a new clip stops the previous one instead of talking over it
+let currentAudio = null;
+function play(url, id) {
+  if (!url || document.visibilityState !== 'visible') return;
+  const key = `nn_audio_${id ?? url}`;
+  try {
+    const claimed = Number(localStorage.getItem(key) || 0);
+    if (Date.now() - claimed < 4000) return;               // another tab already played this one
+    localStorage.setItem(key, String(Date.now()));
+  } catch { /* private mode: fall back to visibility-only */ }
+  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+  currentAudio = new Audio(url);
+  currentAudio.play().catch(() => {});
+}
 
 // ---------- state ----------
 function onState(s) {
@@ -104,11 +120,15 @@ function onState(s) {
 
   // busy + narration
   $('busy').hidden = !s.busy; if (s.busy) $('busy').textContent = s.busy;
+  if (!onState.started) {                                     // page just loaded: whatever narration exists is old, don't replay it
+    onState.started = true;
+    onState.narrT = s.narration ? s.narration.t_ms : null;
+  }
   if (s.narration && s.narration.t_ms !== onState.narrT) {
     onState.narrT = s.narration.t_ms;
     const n = $('narration'); n.textContent = s.narration.text; n.classList.add('show');
     clearTimeout(onState.narrTimer); onState.narrTimer = setTimeout(() => n.classList.remove('show'), 9000);
-    if (s.narration.audio_url) play(s.narration.audio_url);
+    if (s.narration.audio_url) play(s.narration.audio_url, `n${s.narration.t_ms}`);
   }
 }
 
