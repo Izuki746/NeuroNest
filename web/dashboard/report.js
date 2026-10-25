@@ -68,18 +68,18 @@ function drawChart(days) {
   const X = (d) => L + (d / maxD) * pw, Y = (v) => T + (1 - Math.min(1.05, v) / 1.05) * ph;
   const css = getComputedStyle(document.body);
   const print = window.matchMedia('print').matches;
-  g.strokeStyle = 'rgba(30,42,50,0.08)'; g.fillStyle = 'rgba(30,42,50,0.65)';
+  g.strokeStyle = 'rgba(232,238,242,0.07)'; g.fillStyle = 'rgba(232,238,242,0.62)';
   g.font = '11px ui-monospace, monospace';
   for (const v of [0, 0.25, 0.5, 0.75, 1]) { g.beginPath(); g.moveTo(L, Y(v)); g.lineTo(W - R, Y(v)); g.stroke(); g.fillText(`${v * 100}%`, 6, Y(v) + 4); }
   for (const d of [0, 15, 30, 45, 60, 75, 90]) g.fillText(`${d}`, X(d) - 6, H - 6);
   const grad = g.createLinearGradient(0, T, 0, T + ph);
-  grad.addColorStop(0, 'rgba(31,111,120,0.30)'); grad.addColorStop(1, 'rgba(31,111,120,0)');
+  grad.addColorStop(0, 'rgba(0,194,209,0.28)'); grad.addColorStop(1, 'rgba(0,194,209,0)');
   g.beginPath(); days.forEach((d, i) => (i ? g.lineTo(X(d.day), Y(d.arm)) : g.moveTo(X(d.day), Y(d.arm))));
   g.lineTo(X(days[days.length - 1].day), T + ph); g.lineTo(X(days[0].day), T + ph); g.closePath();
   g.fillStyle = grad; g.fill();
   g.beginPath(); days.forEach((d, i) => (i ? g.lineTo(X(d.day), Y(d.arm)) : g.moveTo(X(d.day), Y(d.arm))));
-  g.strokeStyle = '#1F6F78'; g.lineWidth = 2.5; g.stroke();
-  for (const d of days) if (d.seizures) { g.fillStyle = '#E07A5F'; g.beginPath(); g.arc(X(d.day), Y(d.arm), 4, 0, Math.PI * 2); g.fill(); }
+  g.strokeStyle = '#00C2D1'; g.lineWidth = 2.5; g.stroke();
+  for (const d of days) if (d.seizures) { g.fillStyle = '#D14D8B'; g.beginPath(); g.arc(X(d.day), Y(d.arm), 4, 0, Math.PI * 2); g.fill(); }
 }
 
 $('refresh').addEventListener('click', () => load(true));

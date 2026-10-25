@@ -1,10 +1,10 @@
 .report-page { overflow: auto; display: block; }
-.report-page .top { position: sticky; top: 0; z-index: 5; background: rgba(247,245,242,.92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+.report-page .top { position: sticky; top: 0; z-index: 5; background: rgba(11,15,20,.9); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
 .report-page a.btn { text-decoration: none; }
 .rep { max-width: 1180px; margin: 0 auto; padding: 18px 20px 40px; display: grid; gap: 16px; }
 .loading { display: flex; align-items: center; gap: 10px; justify-content: center; padding: 60px; color: var(--soft); font-size: 15px; }
 .loading span { width: 10px; height: 10px; border-radius: 50%; background: var(--primary); animation: breathe 1.4s ease-in-out infinite; }
-.rep-error { padding: 10px 14px; border-radius: 12px; border: 1px solid var(--amber); background: #fff6e8; color: #8a5200; font-size: 13px; }
+.rep-error { padding: 10px 14px; border-radius: 12px; border: 1px solid var(--amber); background: rgba(242,165,65,.10); color: var(--amber); font-size: 13px; }
 .rep-top { display: grid; grid-template-columns: 360px 1fr; gap: 16px; }
 .rep-big { font-size: 22px; font-weight: 700; margin: 6px 0 2px; }
 .rep-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 14px; }
@@ -25,12 +25,12 @@
 .days .note { font-size: 14px; line-height: 1.45; color: var(--text); }
 .days .tags { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .days .tags span { font-size: 10.5px; padding: 2px 8px; border-radius: 999px; background: var(--card); color: var(--soft); white-space: nowrap; }
-.days .tags .sz { background: #fbe4dd; color: #8a3420; }
-.days .tags .good { background: #d9efe7; color: var(--ok); }
+.days .tags .sz { background: rgba(255,92,122,.14); color: #ffb3c1; }
+.days .tags .good { background: rgba(47,212,160,.14); color: var(--ok); }
 .days li.partial { border-style: dashed; }
 .rep-note { text-align: center; font-size: 12px; }
 #source.gemini { border-color: var(--primary); color: var(--primary); }
-#source.template { border-color: var(--amber); color: #9a5a00; }
+#source.template { border-color: var(--amber); color: var(--amber); }
 
 @media (max-width: 900px) { .rep-top { grid-template-columns: 1fr; } .days li { grid-template-columns: 60px 80px 1fr; } .days .tags { grid-column: 1 / -1; justify-content: flex-start; } }
 
