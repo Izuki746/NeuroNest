@@ -11,7 +11,7 @@ closing recovery window, and AI plan vs standard vs no-rehab comparison plus a t
 python web/dashboard/dev_server.py --card A      # or B
 ```
 - Dashboard: **http://localhost:8000/dashboard/** (F11 for fullscreen) · Phones: **http://<laptop-ip>:8000/phone/** (QR code at **/qr**)
-- Webcam squeezes: `python inputs/hands.py --server ws://127.0.0.1:8000/ws/input --camera 0` (own venv, see requirements-hands.txt)
+- Webcam squeezes: double-click **`run_hands.bat`** (or `run_hands.bat 1` for a second camera). First run sets up `.venv-hands` with MediaPipe; the hand model is in `inputs/models/hand_landmarker.task`. Window keys: **C** recalibrate, **Space** manual squeeze, **Q** quit.
 - Keyboard backup: `python inputs/keyboard.py`
 - The Uno Q polls `/api/device` on the same server.
 

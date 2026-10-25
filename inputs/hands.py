@@ -248,7 +248,11 @@ def main() -> None:
 
     ws = WSClient(args.server)
     ws.start()
-    cap = cv2.VideoCapture(args.camera)
+    # DirectShow opens webcams in ~1 s on Windows (the default MSMF backend can take 10+ s)
+    import sys
+    cap = cv2.VideoCapture(args.camera, cv2.CAP_DSHOW) if sys.platform == "win32" else cv2.VideoCapture(args.camera)
+    if not cap.isOpened():
+        cap = cv2.VideoCapture(args.camera)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
     tracker = HandTracker()
